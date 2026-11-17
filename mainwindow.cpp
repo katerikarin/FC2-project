@@ -52,6 +52,17 @@ MainWindow::~MainWindow() {
     delete ui;
 }
 
+bool MainWindow::hasClue(int clueId) const {
+    return persistentClues.contains(clueId) || currentLevelClues.contains(clueId);
+}
+
+void MainWindow::onClueCollected(int clueId) {
+    if (hasClue(clueId)) return;
+
+    currentLevelClues.insert(clueId);
+    hud->setSigilCollected(clueId, true);
+}
+
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     hud->setGeometry(0,0,width(), 52);
@@ -70,14 +81,20 @@ void MainWindow::setState(GameState newState) {
         overlayBanner->show();
         overlayBanner->raise();
         break;
+
     case GameState::Playing:
         transitionTimer->stop();
         overlayBanner->hide();
         frameClock.restart();
         gameLoopTimer->start(16);
         break;
+
     case GameState::LevelComplete:
         gameLoopTimer->stop();
+
+        persistentClues.unite(currentLevelClues);
+        currentLevelClues.clear();
+
         overlayBanner->setText("LEVEL 1 COMPLETE!\nSigil 1 Collected.\n\nProceeding to next area...");
         overlayBanner->show();
         overlayBanner->raise();
@@ -87,6 +104,9 @@ void MainWindow::setState(GameState newState) {
     case GameState::NextLevelStub:
         gameLoopTimer->stop();
         hud->setLevelText("Level 2 (Milestone 2 Stub)");
+
+        hud->setSigilCollected(1, persistentClues.contains(1));
+
         overlayBanner->setText("LEVEL 2 — COMING SOON\n\n(Milestone 1 Complete)");
         overlayBanner->show();
         overlayBanner->raise();
@@ -105,10 +125,24 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
     if (state != GameState::Playing) {
         return;
     }
-    // TEMPORARY (REMOVE LATER)
-    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
-        setState(GameState::LevelComplete);
-        return;
+    // TEMPORARY DEBUG HOTKEYS (REMOVE LATER)
+    if (event->key() == Qt::Key_1) {
+        // Damage Explorer A by 50 HP
+        debugHpA = qMax(0, debugHpA - 50);
+        hud->setPlayerHealth(1, debugHpA, 100);
+    } else if (event->key() == Qt::Key_2) {
+        // Damage Explorer B by 50 HP
+        debugHpB = qMax(0, debugHpB - 50);
+        hud->setPlayerHealth(2, debugHpB, 100);
+    } else if (event->key() == Qt::Key_3) {
+        // Collect Sigil 1
+        onClueCollected(1);
+    } else if (event->key() == Qt::Key_4) {
+        // Toggle Explorer A standing on Exit
+        debugExplorerAAtExit = !debugExplorerAAtExit;
+    } else if (event->key() == Qt::Key_5) {
+        // Toggle Explorer B standing on Exit
+        debugExplorerBAtExit = !debugExplorerBAtExit;
     }
 
     QMainWindow::keyPressEvent(event);
@@ -120,8 +154,45 @@ void MainWindow::onGameTick() {
     double dt = frameClock.restart() / 1000.0;
     Q_UNUSED(dt);
 
-    // future integration hooks for the actual gameplay
+    // future integration hooks for the actual gameplay (malek, ali, ahmed)
     // currentLevel->update(dt)
+
+    // update movement, hazards, and puzzles (integration hook)
+
+    if (isEitherExplorerDead()) {
+        restartCurrentLevel();
+        return;
+    }
+
+    if (hasClue(currentLevelNumber) && areBothExplorersAtExit()) {
+        setState(GameState::LevelComplete);
+        return;
+    }
+
+}
+
+bool MainWindow::isEitherExplorerDead() const {
+    return (debugHpA <= 0) || (debugHpB <= 0);
+}
+
+bool MainWindow::areBothExplorersAtExit() const {
+    return debugExplorerAAtExit && debugExplorerBAtExit;
+}
+
+void MainWindow::restartCurrentLevel() {
+    currentLevelClues.clear();
+
+    hud->resetCurrentLevelHUD(100,100);
+    if (persistentClues.contains(1)) {
+        hud->setSigilCollected(1, true);
+    }
+
+    debugHpA = 100;
+    debugHpB = 100;
+    debugExplorerAAtExit = false;
+    debugExplorerBAtExit = false;
+
+    frameClock.restart();
 }
 
 void MainWindow::onTransitionTimerTimeout() {
