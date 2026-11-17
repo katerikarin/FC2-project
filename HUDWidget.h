@@ -4,25 +4,34 @@
 #include <QProgressBar>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QList>
 #include <QString>
 
+// Mouse-transparent overlay drawn on top of the game view.
+// It only DISPLAYS state; MainWindow/Level own the truth.
 class HUDWidget : public QWidget {
     Q_OBJECT
 
 public:
+    static constexpr int SigilCount = 5;   // one clue per level (spec: all clues stay viewable)
+
     explicit HUDWidget(QWidget *parent = nullptr);
 
 public slots:
-    void setPlayerHealth(int playerID, int current, int max);
+    // playerId: 1 = Explorer A, 2 = Explorer B
+    void setPlayerHealth(int playerId, int current, int max);
+    // sigilIndex: 1..SigilCount
     void setSigilCollected(int sigilIndex, bool collected);
-    void setLevelText(const QString& Text);
-    void resetCurrentLevelHUD(int maxhpA = 100, int maxhpB = 100);
+    void setLevelText(const QString& text);
+    // Resets health bars AND empties every sigil slot; caller re-applies persistent clues.
+    void resetCurrentLevelHUD(int maxHpA = 100, int maxHpB = 100);
 
 private:
-    QProgressBar* hpBarA;
-    QProgressBar* hpBarB;
-    QLabel* levelLabel;
-    QLabel* sigilSlot1;
+    QProgressBar* makeHpBar(const QString& label, const QString& chunkColor);
+    void styleSigilSlot(QLabel* slot, int index, bool collected);
 
-signals:
+    QProgressBar*   hpBarA;
+    QProgressBar*   hpBarB;
+    QLabel*         levelLabel;
+    QList<QLabel*>  sigilSlots;   // index 0 = Sigil 1
 };
