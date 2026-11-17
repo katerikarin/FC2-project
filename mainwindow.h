@@ -5,8 +5,9 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QTimer>
-#include <QElapsedTimer.h>
+#include <QElapsedTimer>   // fixed: was <QElapsedTimer.h> (breaks on case-sensitive systems, L-12 "fresh clone")
 #include <QLabel>
+#include <QSet>
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QResizeEvent>
@@ -16,17 +17,33 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+// ============================= GAME STATE ===============================
+// M2 TODO: add MainMenu, LevelSelect, Settings, Credits, ReplayConfirm, GameWon
+//          (Title can be renamed MainMenu once the menu exists).
 enum class GameState {
     Title,
     Playing,
     LevelComplete,
-    NextLevelStub
+    NextLevelStub      // M2 TODO: delete once Level 2 exists
 };
+
+// ============================= GAME CONSTANTS ===========================
+// Single source of truth for "magic numbers". Fill from the team design freeze (A5).
+namespace Config {
+constexpr int WindowW          = 1024;
+constexpr int WindowH          = 768;
+constexpr int HudHeight        = 52;
+constexpr int TickMs           = 16;     // ~60 FPS
+constexpr int CompleteBannerMs = 2500;   // L1-18
+constexpr int MaxHp            = 100;    // TODO(A5): confirm with team HP table
+constexpr int TotalLevels      = 5;      // M2
+}
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
+    // ===================== PUBLIC API (used by teammates) ===============
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
@@ -34,44 +51,73 @@ public:
     bool hasClue(int clueId) const;
 
 public slots:
+    // Ali's Puzzle/Clue system should emit a signal connected to this.
     void onClueCollected(int clueId);
 
 protected:
+    // ===================== QT EVENT OVERRIDES ===========================
     void resizeEvent(QResizeEvent* event) override;
-    void keyPressEvent(QKeyEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;     // Ahmed (B1): replace debug keys with InputHandler
+    void mousePressEvent(QMouseEvent* event) override; // M2: stays for click-to-start only
 
 private slots:
     void onGameTick();
     void onTransitionTimerTimeout();
 
 private:
-
-    void setState(GameState newState);
-    void restartCurrentLevel();
+    // ===================== 1. UI SETUP (called once from ctor) ==========
+    void setupScene();
+    void setupHud();
+    void setupOverlayBanner();
+    void setupTimers();
     void updateOverlayLayout();
+    void showBanner(const QString& text);
+    // M2 TODO: setupMenus() -> own QWidget container WITHOUT WA_TransparentForMouseEvents
 
+    // ===================== 2. STATE MACHINE =============================
+    void setState(GameState newState);
+    void enterTitle();
+    void enterPlaying();
+    void enterLevelComplete();
+    void enterNextLevelStub();
+
+    // ===================== 3. LEVEL LIFECYCLE ===========================
+    // Malek (Level.cpp) plugs in here.
+    // M2 TODO: startLevel(int levelNumber) - see commit 2.
+    void restartCurrentLevel();
+    // M2 TODO: loadFromFile(path) for the data-driven bonus; replay -> startLevel(n)
+    //          with persistentClues pre-filled from save.txt.
+
+    // ===================== 4. GAME LOOP (per-tick rules) ================
+    // Order matters: death BEFORE exit (L1-10), exit needs clue AND both (L1-17).
     bool isEitherExplorerDead() const;
     bool areBothExplorersAtExit() const;
 
-    Ui::MainWindow *ui;
-    GameState state = GameState::Title;
-    int currentLevelNumber = 1;
+    // ===================== 5. CLUE STORAGE (L1-19) ======================
+    // M2 TODO: saveProgress() / loadProgress() with QFile + QTextStream (save.txt)
 
+    // ===================== MEMBERS ======================================
+    // ---- Qt scaffolding
+    Ui::MainWindow* ui;
     QGraphicsScene* scene;
-    QGraphicsView* view;
-    HUDWidget* hud;
-    QLabel* overlayBanner;
+    QGraphicsView*  view;
+    HUDWidget*      hud;
+    QLabel*         overlayBanner;   // mouse-transparent; M2 menus need a separate container
 
-    QTimer* gameLoopTimer;
-    QTimer* transitionTimer;
+    // ---- Timing
+    QTimer*       gameLoopTimer;
+    QTimer*       transitionTimer;
     QElapsedTimer frameClock;
 
-    QSet<int> persistentClues;
-    QSet<int> currentLevelClues;
+    // ---- Game progress
+    GameState state = GameState::Title;
+    int currentLevelNumber = 1;
+    QSet<int> persistentClues;     // survive a restart
+    QSet<int> currentLevelClues;   // wiped on restart
 
-    int debugHpA = 100;
-    int debugHpB = 100;
+    // ---- TEMP stubs standing in for Explorer/Level (DELETE once Level.h is integrated, A5)
+    int  debugHpA = Config::MaxHp;
+    int  debugHpB = Config::MaxHp;
     bool debugExplorerAAtExit = false;
     bool debugExplorerBAtExit = false;
 };
