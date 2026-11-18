@@ -1,6 +1,14 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+namespace {
+// M2 TODO: replace with names read from the level definition (data-driven bonus).
+QString levelTitle(int n) {
+    return n == 1 ? QStringLiteral("Level 1: Mossy Cave")
+                  : QStringLiteral("Level %1").arg(n);
+}
+}
+
 // ========================================================================
 //  1. CONSTRUCTION & UI SETUP
 //     Everything that is built exactly once lives here.
@@ -61,7 +69,7 @@ void MainWindow::setupOverlayBanner() {
         "border: 2px solid #4e6e58;"
         "border-radius: 10px;"
         "padding: 24px;"
-        );
+    );
 }
 
 void MainWindow::setupTimers() {
@@ -120,7 +128,7 @@ void MainWindow::setState(GameState newState) {
 void MainWindow::enterTitle() {
     gameLoopTimer->stop();
     transitionTimer->stop();
-    hud->setLevelText("Level 1: Mossy Cave");
+    hud->setLevelText(levelTitle(1));
     showBanner("RUINS OF THE UNOWN\n\nClick Anywhere to Start Level 1");
 }
 
@@ -138,14 +146,15 @@ void MainWindow::enterLevelComplete() {
     persistentClues.unite(currentLevelClues);
     currentLevelClues.clear();
 
-    showBanner("LEVEL 1 COMPLETE!\nSigil 1 Collected.\n\nProceeding to next area...");
+    showBanner(QString("LEVEL %1 COMPLETE!\nSigil %1 Collected.\n\nProceeding to next area...")
+                   .arg(currentLevelNumber));
     transitionTimer->start(Config::CompleteBannerMs);   // L1-18
 }
 
 void MainWindow::enterNextLevelStub() {
     gameLoopTimer->stop();
-    hud->setLevelText("Level 2 (Milestone 2 Stub)");
-    hud->setSigilCollected(1, persistentClues.contains(1));   // L1-16: clue stays visible
+    hud->setLevelText(levelTitle(currentLevelNumber + 1) + " (Milestone 2 Stub)");
+    refreshClueHud();   // L1-16: earned clues stay visible
     showBanner("LEVEL 2 — COMING SOON\n\n(Milestone 1 Complete)");
 }
 
@@ -164,7 +173,7 @@ void MainWindow::onTransitionTimerTimeout() {
 
 void MainWindow::mousePressEvent(QMouseEvent* event) {
     if (state == GameState::Title && event->button() == Qt::LeftButton) {
-        setState(GameState::Playing);
+        startLevel(1);   // M2: Level Select / Replay buttons call startLevel(n) instead
     }
     QMainWindow::mousePressEvent(event);
 }
@@ -192,6 +201,11 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
     QMainWindow::keyPressEvent(event);
 }
 
+void MainWindow::keyReleaseEvent(QKeyEvent* event) {
+    // Ahmed (B1): forward releases to the input handler so keys never stick.
+    QMainWindow::keyReleaseEvent(event);
+}
+
 // ========================================================================
 //  5. GAME LOOP  (runs every Config::TickMs while Playing)
 //     Integration order (do not reorder - spec criteria depend on it):
@@ -211,7 +225,7 @@ void MainWindow::onGameTick() {
         return;
     }
 
-    if (hasClue(currentLevelNumber) && areBothExplorersAtExit()) {
+    if (isLevelWon()) {
         setState(GameState::LevelComplete);
     }
 }
@@ -226,18 +240,32 @@ bool MainWindow::areBothExplorersAtExit() const {
     return debugExplorerAAtExit && debugExplorerBAtExit;
 }
 
+bool MainWindow::isLevelWon() const {
+    // L1-17: a clue AND both explorers on the exit. Clue id == level number for now.
+    return hasClue(currentLevelNumber) && areBothExplorersAtExit();
+}
+
 // ========================================================================
 //  6. LEVEL LIFECYCLE
-//     M2 TODO: startLevel(n) / loadFromFile(path) (see commit 2).
+//     M2 TODO: loadFromFile(path) for the data-driven bonus.
+//     M2 TODO: Replay -> loadProgress() into persistentClues, then startLevel(n).
 // ========================================================================
+
+void MainWindow::startLevel(int levelNumber) {
+    currentLevelNumber = levelNumber;
+    setWindowTitle(QString("Ruins of the Unown - Level %1").arg(levelNumber));
+    hud->setLevelText(levelTitle(levelNumber));
+
+    // TODO(A5): currentLevel = Level::create(levelNumber); currentLevel->loadLevel(levelNumber);
+    restartCurrentLevel();          // fresh HP / exits / current-level clues, HUD re-synced
+    setState(GameState::Playing);
+}
 
 void MainWindow::restartCurrentLevel() {
     currentLevelClues.clear();   // L1-19: only this level's clues are lost
 
     hud->resetCurrentLevelHUD(Config::MaxHp, Config::MaxHp);
-    if (persistentClues.contains(1)) {
-        hud->setSigilCollected(1, true);
-    }
+    refreshClueHud();   // re-light earlier clues, keep this level's slot empty
 
     debugHpA = Config::MaxHp;
     debugHpB = Config::MaxHp;
@@ -263,4 +291,10 @@ void MainWindow::onClueCollected(int clueId) {
 
     currentLevelClues.insert(clueId);
     hud->setSigilCollected(clueId, true);
+}
+
+void MainWindow::refreshClueHud() {
+    for (int id = 1; id <= HUDWidget::SigilCount; ++id) {
+        hud->setSigilCollected(id, hasClue(id));
+    }
 }

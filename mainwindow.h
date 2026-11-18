@@ -58,6 +58,7 @@ protected:
     // ===================== QT EVENT OVERRIDES ===========================
     void resizeEvent(QResizeEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;     // Ahmed (B1): replace debug keys with InputHandler
+    void keyReleaseEvent(QKeyEvent* event) override;   // Ahmed (B1): needed for no-stuck-keys (checklist #2/#3)
     void mousePressEvent(QMouseEvent* event) override; // M2: stays for click-to-start only
 
 private slots:
@@ -83,7 +84,7 @@ private:
 
     // ===================== 3. LEVEL LIFECYCLE ===========================
     // Malek (Level.cpp) plugs in here.
-    // M2 TODO: startLevel(int levelNumber) - see commit 2.
+    void startLevel(int levelNumber);   // the ONLY way a level begins (M1: always 1)
     void restartCurrentLevel();
     // M2 TODO: loadFromFile(path) for the data-driven bonus; replay -> startLevel(n)
     //          with persistentClues pre-filled from save.txt.
@@ -92,8 +93,10 @@ private:
     // Order matters: death BEFORE exit (L1-10), exit needs clue AND both (L1-17).
     bool isEitherExplorerDead() const;
     bool areBothExplorersAtExit() const;
+    bool isLevelWon() const;            // clue AND both at exit (L1-17)
 
     // ===================== 5. CLUE STORAGE (L1-19) ======================
+    void refreshClueHud();              // repaint all 5 sigil slots from the two clue sets
     // M2 TODO: saveProgress() / loadProgress() with QFile + QTextStream (save.txt)
 
     // ===================== MEMBERS ======================================
