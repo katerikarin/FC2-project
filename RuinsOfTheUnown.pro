@@ -9,12 +9,14 @@ CONFIG += c++17
 SOURCES += \
     Explorer.cpp \
     HUDWidget.cpp \
+    Level.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
     Explorer.h \
     HUDWidget.h \
+    Level.h \
     mainwindow.h
 
 FORMS += \
