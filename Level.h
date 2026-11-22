@@ -7,8 +7,10 @@
 #include <QList>
 #include <QSet>
 #include "Explorer.h"
+#include "Puzzle.h"
+#include "Sigil.h"
 
-// Holds everything inside one level: the two explorers, the walls and the exit.
+// Holds everything inside one level: the two explorers, the walls, the exit and the puzzles.
 // MainWindow calls update() every game tick and reset() when the level restarts.
 class Level : public QObject
 {
@@ -29,6 +31,9 @@ public:
     Explorer* getExplorerB();
     bool bothAtExit();
 
+signals:
+    void clueCollected(int clueId);
+
 private:
     void addWall(int x, int y, int w, int h);
     void moveExplorer(Explorer* explorer, int dx, int dy);
@@ -40,6 +45,9 @@ private:
     QList<QGraphicsRectItem*> walls;
     QGraphicsRectItem* exitZone;
     QSet<int> heldKeys;
+
+    QList<Puzzle*> puzzles;
+    Sigil* sigil;
 };
 
 #endif // LEVEL_H

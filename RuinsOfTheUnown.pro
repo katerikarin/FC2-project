@@ -10,6 +10,8 @@ SOURCES += \
     Explorer.cpp \
     HUDWidget.cpp \
     Level.cpp \
+    Puzzle.cpp \
+    Sigil.cpp \
     main.cpp \
     mainwindow.cpp
 
@@ -17,6 +19,8 @@ HEADERS += \
     Explorer.h \
     HUDWidget.h \
     Level.h \
+    Puzzle.h \
+    Sigil.h \
     mainwindow.h
 
 FORMS += \

@@ -50,6 +50,7 @@ void MainWindow::setupScene() {
     setCentralWidget(view);
 
     level = new Level(scene, this);
+    connect(level, &Level::clueCollected, this, &MainWindow::onClueCollected);
 }
 
 void MainWindow::setupHud() {

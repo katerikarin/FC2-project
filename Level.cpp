@@ -11,6 +11,7 @@ Level::Level(QGraphicsScene* scene, QObject* parent) : QObject(parent)
     explorerA = nullptr;
     explorerB = nullptr;
     exitZone = nullptr;
+    sigil = nullptr;
 }
 
 void Level::loadLevel(int levelNumber)
@@ -43,6 +44,10 @@ void Level::loadLevel(int levelNumber)
     explorerB = new Explorer(QColor("#3f7fd6"), 140, 690, Config::MaxHp);
     scene->addItem(explorerA);
     scene->addItem(explorerB);
+
+    // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
+    sigil = new Sigil(scene, 1, 816, 400, this);
+    connect(sigil, &Sigil::collected, this, &Level::clueCollected);
 }
 
 void Level::update()
@@ -68,6 +73,11 @@ void Level::update()
 
     moveExplorer(explorerA, ax, ay);
     moveExplorer(explorerB, bx, by);
+
+    // puzzles check where the explorers are standing
+    for (int i = 0; i < puzzles.size(); i++)
+        puzzles[i]->update(explorerA, explorerB);
+    sigil->update(explorerA, explorerB);
 }
 
 void Level::reset()
@@ -78,6 +88,10 @@ void Level::reset()
     explorerA->reset();
     explorerB->reset();
     heldKeys.clear();
+
+    for (int i = 0; i < puzzles.size(); i++)
+        puzzles[i]->reset();
+    sigil->reset();
 }
 
 void Level::keyPressed(int key)
