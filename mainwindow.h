@@ -12,6 +12,7 @@
 #include <QKeyEvent>
 #include <QResizeEvent>
 #include "HUDWidget.h"
+#include "Level.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -118,11 +119,8 @@ private:
     QSet<int> persistentClues;     // survive a restart
     QSet<int> currentLevelClues;   // wiped on restart
 
-    // ---- TEMP stubs standing in for Explorer/Level (DELETE once Level.h is integrated, A5)
-    int  debugHpA = Config::MaxHp;
-    int  debugHpB = Config::MaxHp;
-    bool debugExplorerAAtExit = false;
-    bool debugExplorerBAtExit = false;
+    // ---- the current level (explorers, walls, exit)
+    Level* level;
 };
 
 #endif // MAINWINDOW_H
