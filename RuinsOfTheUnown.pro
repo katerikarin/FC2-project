@@ -10,6 +10,7 @@ SOURCES += \
     Explorer.cpp \
     HUDWidget.cpp \
     Level.cpp \
+    LetterTrailPuzzle.cpp \
     Puzzle.cpp \
     Sigil.cpp \
     main.cpp \
@@ -19,6 +20,7 @@ HEADERS += \
     Explorer.h \
     HUDWidget.h \
     Level.h \
+    LetterTrailPuzzle.h \
     Puzzle.h \
     Sigil.h \
     mainwindow.h

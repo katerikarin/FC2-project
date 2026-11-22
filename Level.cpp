@@ -1,5 +1,6 @@
 #include "Level.h"
 #include "mainwindow.h"
+#include "LetterTrailPuzzle.h"
 #include <QBrush>
 #include <QPen>
 
@@ -44,6 +45,10 @@ void Level::loadLevel(int levelNumber)
     explorerB = new Explorer(QColor("#3f7fd6"), 140, 690, Config::MaxHp);
     scene->addItem(explorerA);
     scene->addItem(explorerB);
+
+    // puzzle 1: the letter trail in the left room
+    LetterTrailPuzzle* trailPuzzle = new LetterTrailPuzzle(scene, this);
+    puzzles.append(trailPuzzle);
 
     // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
     sigil = new Sigil(scene, 1, 816, 400, this);
