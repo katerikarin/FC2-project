@@ -34,8 +34,11 @@ public:
 signals:
     void clueCollected(int clueId);
 
+private slots:
+    void openGate();
+
 private:
-    void addWall(int x, int y, int w, int h);
+    QGraphicsRectItem* addWall(int x, int y, int w, int h);
     void moveExplorer(Explorer* explorer, int dx, int dy);
     bool hitsWall(Explorer* explorer);
 
@@ -44,6 +47,7 @@ private:
     Explorer* explorerB;
     QList<QGraphicsRectItem*> walls;
     QGraphicsRectItem* exitZone;
+    QGraphicsRectItem* gate;
     QSet<int> heldKeys;
 
     QList<Puzzle*> puzzles;

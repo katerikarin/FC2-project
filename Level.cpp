@@ -12,6 +12,7 @@ Level::Level(QGraphicsScene* scene, QObject* parent) : QObject(parent)
     explorerA = nullptr;
     explorerB = nullptr;
     exitZone = nullptr;
+    gate = nullptr;
     sigil = nullptr;
 }
 
@@ -28,9 +29,11 @@ void Level::loadLevel(int levelNumber)
     addWall(1008, 52, 16, 716);
 
     // wall between the trail room (left) and the altar room (right)
-    // the gap from y = 360 to 440 is where the gate goes
+    // the gap from y = 360 to 440 is closed by the gate until the letter trail is solved
     addWall(600, 68, 24, 292);
     addWall(600, 440, 24, 312);
+    gate = addWall(600, 360, 24, 80);
+    gate->setBrush(QBrush(QColor("#8a6d3b")));
 
     // exit in the top right corner
     exitZone = new QGraphicsRectItem(0, 0, 90, 90);
@@ -49,6 +52,7 @@ void Level::loadLevel(int levelNumber)
     // puzzle 1: the letter trail in the left room
     LetterTrailPuzzle* trailPuzzle = new LetterTrailPuzzle(scene, this);
     puzzles.append(trailPuzzle);
+    connect(trailPuzzle, &Puzzle::solved, this, &Level::openGate);
 
     // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
     sigil = new Sigil(scene, 1, 816, 400, this);
@@ -97,6 +101,7 @@ void Level::reset()
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->reset();
     sigil->reset();
+    gate->show();   // the gate closes again on a restart
 }
 
 void Level::keyPressed(int key)
@@ -126,7 +131,7 @@ bool Level::bothAtExit()
     return explorerA->collidesWithItem(exitZone) && explorerB->collidesWithItem(exitZone);
 }
 
-void Level::addWall(int x, int y, int w, int h)
+QGraphicsRectItem* Level::addWall(int x, int y, int w, int h)
 {
     QGraphicsRectItem* wall = new QGraphicsRectItem(0, 0, w, h);
     wall->setPos(x, y);
@@ -134,6 +139,13 @@ void Level::addWall(int x, int y, int w, int h)
     wall->setPen(QPen(Qt::NoPen));
     scene->addItem(wall);
     walls.append(wall);
+    return wall;
+}
+
+void Level::openGate()
+{
+    // a hidden wall does not block (see hitsWall)
+    gate->hide();
 }
 
 void Level::moveExplorer(Explorer* explorer, int dx, int dy)
