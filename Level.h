@@ -21,6 +21,7 @@ public:
 
     void loadLevel(int levelNumber);
     void update();
+    void update(double elapsedSeconds);
     void reset();
 
     // keys are remembered while they are held so both players can move together
@@ -39,7 +40,7 @@ private slots:
 
 private:
     QGraphicsRectItem* addWall(int x, int y, int w, int h);
-    void moveExplorer(Explorer* explorer, int dx, int dy);
+    void moveExplorer(Explorer* explorer, int dx, int dy, double elapsedSeconds);
     bool hitsWall(Explorer* explorer);
 
     QGraphicsScene* scene;

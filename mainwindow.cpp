@@ -216,9 +216,7 @@ void MainWindow::onGameTick() {
     if (state != GameState::Playing) return;
 
     const double dt = frameClock.restart() / 1000.0;
-    Q_UNUSED(dt);
-
-    level->update();   // movement, hazards, puzzles
+    level->update(dt);   // movement, hazards, puzzles
 
     hud->setPlayerHealth(1, level->getExplorerA()->getHealth(), Config::MaxHp);
     hud->setPlayerHealth(2, level->getExplorerB()->getHealth(), Config::MaxHp);
