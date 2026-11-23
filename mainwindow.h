@@ -57,6 +57,7 @@ public slots:
 
 protected:
     // ===================== QT EVENT OVERRIDES ===========================
+    bool event(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;     // Ahmed (B1): replace debug keys with InputHandler
     void keyReleaseEvent(QKeyEvent* event) override;   // Ahmed (B1): needed for no-stuck-keys (checklist #2/#3)
@@ -120,7 +121,7 @@ private:
     QSet<int> currentLevelClues;   // wiped on restart
 
     // ---- the current level (explorers, walls, exit)
-    Level* level;
+    Level* level = nullptr;
 };
 
 #endif // MAINWINDOW_H

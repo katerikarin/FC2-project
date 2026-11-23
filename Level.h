@@ -29,6 +29,7 @@ public:
     // keys are remembered while they are held so both players can move together
     void keyPressed(int key);
     void keyReleased(int key);
+    void clearHeldKeys();
 
     Explorer* getExplorerA();
     Explorer* getExplorerB();

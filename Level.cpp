@@ -127,6 +127,11 @@ void Level::reset()
     gate->show();   // the gate closes again on a restart
 }
 
+void Level::clearHeldKeys()
+{
+    heldKeys.clear();
+}
+
 void Level::keyPressed(int key)
 {
     heldKeys.insert(key);
