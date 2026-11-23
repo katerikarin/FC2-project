@@ -12,6 +12,7 @@
 #include <QKeyEvent>
 #include <QResizeEvent>
 #include "HUDWidget.h"
+#include "Level.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -56,7 +57,9 @@ public slots:
 
 protected:
     // ===================== QT EVENT OVERRIDES ===========================
+    bool event(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    bool eventFilter(QObject* object, QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;     // Ahmed (B1): replace debug keys with InputHandler
     void keyReleaseEvent(QKeyEvent* event) override;   // Ahmed (B1): needed for no-stuck-keys (checklist #2/#3)
     void mousePressEvent(QMouseEvent* event) override; // M2: stays for click-to-start only
@@ -103,7 +106,7 @@ private:
     // ---- Qt scaffolding
     Ui::MainWindow* ui;
     QGraphicsScene* scene;
-    QGraphicsView*  view;
+    QGraphicsView*  view = nullptr;
     HUDWidget*      hud;
     QLabel*         overlayBanner;   // mouse-transparent; M2 menus need a separate container
 
@@ -118,11 +121,8 @@ private:
     QSet<int> persistentClues;     // survive a restart
     QSet<int> currentLevelClues;   // wiped on restart
 
-    // ---- TEMP stubs standing in for Explorer/Level (DELETE once Level.h is integrated, A5)
-    int  debugHpA = Config::MaxHp;
-    int  debugHpB = Config::MaxHp;
-    bool debugExplorerAAtExit = false;
-    bool debugExplorerBAtExit = false;
+    // ---- the current level (explorers, walls, exit)
+    Level* level = nullptr;
 };
 
 #endif // MAINWINDOW_H

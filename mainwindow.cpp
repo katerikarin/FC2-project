@@ -1,7 +1,13 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include <QVBoxLayout>
 
 namespace {
+bool isMovementKey(int key) {
+    return key == Qt::Key_W || key == Qt::Key_A || key == Qt::Key_S || key == Qt::Key_D
+        || key == Qt::Key_Up || key == Qt::Key_Left || key == Qt::Key_Down || key == Qt::Key_Right;
+}
+
 // M2 TODO: replace with names read from the level definition (data-driven bonus).
 QString levelTitle(int n) {
     return n == 1 ? QStringLiteral("Level 1: Mossy Cave")
@@ -47,7 +53,15 @@ void MainWindow::setupScene() {
     view->setFrameShape(QFrame::NoFrame);
     view->setFocusPolicy(Qt::NoFocus);                      // keys go to MainWindow, not the view
     view->setAttribute(Qt::WA_TransparentForMouseEvents);   // clicks go to MainWindow (click-to-start)
-    setCentralWidget(view);
+    // Reserve the HUD strip in screen pixels, then fit the playable cave below it.
+    QVBoxLayout* layout = new QVBoxLayout(ui->centralwidget);
+    layout->setContentsMargins(0, Config::HudHeight, 0, 0);
+    layout->addWidget(view);
+    view->setSceneRect(scene->sceneRect().adjusted(0, Config::HudHeight, 0, 0));
+    view->viewport()->installEventFilter(this);
+
+    level = new Level(scene, this);
+    connect(level, &Level::clueCollected, this, &MainWindow::onClueCollected);
 }
 
 void MainWindow::setupHud() {
@@ -86,6 +100,12 @@ void MainWindow::setupTimers() {
 //     HUD (top strip) + centred banner. Re-run on every resize.
 // ========================================================================
 
+bool MainWindow::eventFilter(QObject* object, QEvent* event) {
+    if (event->type() == QEvent::Resize && view && object == view->viewport())
+        view->fitInView(view->sceneRect(), Qt::KeepAspectRatio);
+    return QMainWindow::eventFilter(object, event);
+}
+
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     updateOverlayLayout();   // was duplicated here and in updateOverlayLayout()
@@ -115,6 +135,8 @@ void MainWindow::showBanner(const QString& text) {
 // ========================================================================
 
 void MainWindow::setState(GameState newState) {
+    if (newState != GameState::Playing)
+        level->clearHeldKeys();
     state = newState;
 
     switch (state) {
@@ -167,7 +189,7 @@ void MainWindow::onTransitionTimerTimeout() {
 // ========================================================================
 //  4. INPUT HANDLING
 //     Mouse: only the Title click is meaningful in M1 (L1-01).
-//     Keys : TEMP debug hotkeys until Ahmed's input layer is merged.
+//     Keys: WASD for Explorer A, arrows for Explorer B.
 //     M2 TODO: menu navigation moves to QPushButton signals.
 // ========================================================================
 
@@ -178,31 +200,31 @@ void MainWindow::mousePressEvent(QMouseEvent* event) {
     QMainWindow::mousePressEvent(event);
 }
 
-void MainWindow::keyPressEvent(QKeyEvent* event) {
-    if (state != GameState::Playing) {
-        return;
-    }
+bool MainWindow::event(QEvent* event) {
+    // A release may go to another window or widget after focus changes.
+    if (level && (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::FocusOut))
+        level->clearHeldKeys();
+    return QMainWindow::event(event);
+}
 
-    // ---- TEMPORARY DEBUG HOTKEYS (REMOVE IN A5 - replace with real Level calls)
-    if (event->key() == Qt::Key_1) {                 // damage Explorer A
-        debugHpA = qMax(0, debugHpA - 50);
-        hud->setPlayerHealth(1, debugHpA, Config::MaxHp);
-    } else if (event->key() == Qt::Key_2) {          // damage Explorer B
-        debugHpB = qMax(0, debugHpB - 50);
-        hud->setPlayerHealth(2, debugHpB, Config::MaxHp);
-    } else if (event->key() == Qt::Key_3) {          // collect Sigil 1
-        onClueCollected(1);
-    } else if (event->key() == Qt::Key_4) {          // toggle A at exit
-        debugExplorerAAtExit = !debugExplorerAAtExit;
-    } else if (event->key() == Qt::Key_5) {          // toggle B at exit
-        debugExplorerBAtExit = !debugExplorerBAtExit;
+void MainWindow::keyPressEvent(QKeyEvent* event) {
+    if (state == GameState::Playing && isMovementKey(event->key())) {
+        if (!event->isAutoRepeat())
+            level->keyPressed(event->key());
+        event->accept();
+        return;
     }
 
     QMainWindow::keyPressEvent(event);
 }
 
 void MainWindow::keyReleaseEvent(QKeyEvent* event) {
-    // Ahmed (B1): forward releases to the input handler so keys never stick.
+    if (state == GameState::Playing && isMovementKey(event->key())) {
+        if (!event->isAutoRepeat())
+            level->keyReleased(event->key());
+        event->accept();
+        return;
+    }
     QMainWindow::keyReleaseEvent(event);
 }
 
@@ -216,9 +238,12 @@ void MainWindow::onGameTick() {
     if (state != GameState::Playing) return;
 
     const double dt = frameClock.restart() / 1000.0;
-    Q_UNUSED(dt);
+    level->update(dt);   // movement, hazards, puzzles
 
-    // TODO(A5): currentLevel->update(dt);   // movement, hazards, puzzles (Ahmed/Malek/Ali)
+    Explorer* a = level->getExplorerA();
+    Explorer* b = level->getExplorerB();
+    hud->setPlayerHealth(1, a->getHealth(), a->getMaxHealth());
+    hud->setPlayerHealth(2, b->getHealth(), b->getMaxHealth());
 
     if (isEitherExplorerDead()) {            // death BEFORE exit
         restartCurrentLevel();
@@ -233,11 +258,11 @@ void MainWindow::onGameTick() {
 // ---- Rule predicates (swap bodies for Explorer/Level queries in A5) ------
 
 bool MainWindow::isEitherExplorerDead() const {
-    return (debugHpA <= 0) || (debugHpB <= 0);
+    return level->getExplorerA()->isDead() || level->getExplorerB()->isDead();
 }
 
 bool MainWindow::areBothExplorersAtExit() const {
-    return debugExplorerAAtExit && debugExplorerBAtExit;
+    return level->bothAtExit();
 }
 
 bool MainWindow::isLevelWon() const {
@@ -256,7 +281,7 @@ void MainWindow::startLevel(int levelNumber) {
     setWindowTitle(QString("Ruins of the Unown - Level %1").arg(levelNumber));
     hud->setLevelText(levelTitle(levelNumber));
 
-    // TODO(A5): currentLevel = Level::create(levelNumber); currentLevel->loadLevel(levelNumber);
+    level->loadLevel(levelNumber);
     restartCurrentLevel();          // fresh HP / exits / current-level clues, HUD re-synced
     setState(GameState::Playing);
 }
@@ -264,16 +289,11 @@ void MainWindow::startLevel(int levelNumber) {
 void MainWindow::restartCurrentLevel() {
     currentLevelClues.clear();   // L1-19: only this level's clues are lost
 
-    hud->resetCurrentLevelHUD(Config::MaxHp, Config::MaxHp);
+    level->reset();   // restore the explorers before reading their HP for the HUD
+    hud->resetCurrentLevelHUD(level->getExplorerA()->getMaxHealth(), level->getExplorerB()->getMaxHealth());
     refreshClueHud();   // re-light earlier clues, keep this level's slot empty
 
-    debugHpA = Config::MaxHp;
-    debugHpB = Config::MaxHp;
-    debugExplorerAAtExit = false;
-    debugExplorerBAtExit = false;
-
     frameClock.restart();
-    // TODO(A5/Malek C5): currentLevel->reset();
 }
 
 // ========================================================================

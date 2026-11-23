@@ -40,15 +40,9 @@ clone builds on any machine.
 3. If either explorer reaches 0 HP the level restarts. Clues from earlier levels are kept;
    clues from the current level are lost.
 
-Real movement keys are not merged yet. Until then, **temporary debug hotkeys** drive the stubs:
+Explorer A uses **WASD** and Explorer B uses the **arrow keys**. Hold two keys to walk diagonally. Opposite directions cancel. Switching windows stops both explorers until their players press a movement key again.
 
-| Key | Effect |
-|-----|--------|
-| `1` / `2` | Damage Explorer A / B by 50 HP |
-| `3` | Collect Sigil 1 |
-| `4` / `5` | Toggle Explorer A / B on the exit |
-
-These are removed in task A5.
+The letter trail opens the gate. Collecting the sigil through play depends on the cooperative altar being connected to `Sigil::appear()`.
 
 ## Architecture
 

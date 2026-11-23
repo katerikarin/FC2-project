@@ -7,12 +7,28 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    AltarPuzzle.cpp \
+    Explorer.cpp \
     HUDWidget.cpp \
+    Level.cpp \
+    LetterTrailPuzzle.cpp \
+    Puzzle.cpp \
+    Sigil.cpp \
+    hazard.cpp \
+    world.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
+    AltarPuzzle.h \
+    Explorer.h \
     HUDWidget.h \
+    Level.h \
+    LetterTrailPuzzle.h \
+    Puzzle.h \
+    Sigil.h \
+    hazard.h \
+    world.h \
     mainwindow.h
 
 FORMS += \
