@@ -119,6 +119,8 @@ void Level::update(double elapsedSeconds)
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->update(explorerA, explorerB);
     sigil->update(explorerA, explorerB);
+    explorerA->updateDamageFeedback();
+    explorerB->updateDamageFeedback();
 }
 
 void Level::reset()

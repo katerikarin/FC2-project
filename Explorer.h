@@ -4,6 +4,7 @@
 #include <QPixmap>
 #include <QGraphicsRectItem>
 #include <QColor>
+#include <QElapsedTimer>
 
 // The rectangle defines collisions. Painting a sprite leaves that shape intact.
 class Explorer : public QGraphicsRectItem
@@ -15,10 +16,11 @@ public:
     void animate(const QPointF& movement, double elapsedSeconds);
 
     // health
-    int getHealth();
-    int getMaxHealth();
+    int getHealth() const;
+    int getMaxHealth() const;
     void takeDamage(int amount);
-    bool isDead();
+    bool isDead() const;
+    void updateDamageFeedback();
 
     // puts the explorer back at the start with full health
     void reset();
@@ -27,6 +29,7 @@ protected:
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
 private:
+    QElapsedTimer timeSinceHit;
     int health;
     int maxHealth;
     int startX;
