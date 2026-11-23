@@ -56,6 +56,8 @@ void Level::loadLevel(int levelNumber)
     // the two explorers start in the bottom left
     explorerA = new Explorer(QColor("#3fae5a"), 80, 690, Config::MaxHp);
     explorerB = new Explorer(QColor("#3f7fd6"), 140, 690, Config::MaxHp);
+    explorerA->setSpriteSheet(QStringLiteral(":/sprites/explorer_a.png"));
+    explorerB->setSpriteSheet(QStringLiteral(":/sprites/explorer_b.png"));
     scene->addItem(explorerA);
     scene->addItem(explorerB);
 
@@ -100,8 +102,12 @@ void Level::update(double elapsedSeconds)
     if (heldKeys.contains(Qt::Key_Up)) by = by - 1;
     if (heldKeys.contains(Qt::Key_Down)) by = by + 1;
 
+    QPointF oldA = explorerA->pos();
+    QPointF oldB = explorerB->pos();
     moveExplorer(explorerA, ax, ay, elapsedSeconds);
     moveExplorer(explorerB, bx, by, elapsedSeconds);
+    explorerA->animate(explorerA->pos() - oldA, elapsedSeconds);
+    explorerB->animate(explorerB->pos() - oldB, elapsedSeconds);
 
     for (int i = 0; i < hazards.size(); i++)
         hazards[i]->update(explorerA, explorerB);
