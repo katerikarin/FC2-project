@@ -4,8 +4,9 @@
 #include "AltarPuzzle.h"
 #include <QBrush>
 #include <QPen>
+#include <cmath>
 
-const int SPEED = 3; // pixels per tick
+const double WalkSpeed = 187.5; // 3 scene pixels in a nominal 16 ms tick
 
 Level::Level(QGraphicsScene* scene, QObject* parent) : QObject(parent)
 {
@@ -75,27 +76,32 @@ void Level::loadLevel(int levelNumber)
 
 void Level::update()
 {
+    update(Config::TickMs / 1000.0);
+}
+
+void Level::update(double elapsedSeconds)
+{
     if (explorerA == nullptr)
         return;
 
     // explorer A: W A S D
     int ax = 0;
     int ay = 0;
-    if (heldKeys.contains(Qt::Key_A)) ax = ax - SPEED;
-    if (heldKeys.contains(Qt::Key_D)) ax = ax + SPEED;
-    if (heldKeys.contains(Qt::Key_W)) ay = ay - SPEED;
-    if (heldKeys.contains(Qt::Key_S)) ay = ay + SPEED;
+    if (heldKeys.contains(Qt::Key_A)) ax = ax - 1;
+    if (heldKeys.contains(Qt::Key_D)) ax = ax + 1;
+    if (heldKeys.contains(Qt::Key_W)) ay = ay - 1;
+    if (heldKeys.contains(Qt::Key_S)) ay = ay + 1;
 
     // explorer B: arrow keys
     int bx = 0;
     int by = 0;
-    if (heldKeys.contains(Qt::Key_Left)) bx = bx - SPEED;
-    if (heldKeys.contains(Qt::Key_Right)) bx = bx + SPEED;
-    if (heldKeys.contains(Qt::Key_Up)) by = by - SPEED;
-    if (heldKeys.contains(Qt::Key_Down)) by = by + SPEED;
+    if (heldKeys.contains(Qt::Key_Left)) bx = bx - 1;
+    if (heldKeys.contains(Qt::Key_Right)) bx = bx + 1;
+    if (heldKeys.contains(Qt::Key_Up)) by = by - 1;
+    if (heldKeys.contains(Qt::Key_Down)) by = by + 1;
 
-    moveExplorer(explorerA, ax, ay);
-    moveExplorer(explorerB, bx, by);
+    moveExplorer(explorerA, ax, ay, elapsedSeconds);
+    moveExplorer(explorerB, bx, by, elapsedSeconds);
 
     for (int i = 0; i < hazards.size(); i++)
         hazards[i]->update(explorerA, explorerB);
@@ -210,16 +216,28 @@ void Level::openGate()
     gate->hide();
 }
 
-void Level::moveExplorer(Explorer* explorer, int dx, int dy)
+void Level::moveExplorer(Explorer* explorer, int dx, int dy, double elapsedSeconds)
 {
-    // move one direction at a time so the explorer slides along a wall instead of sticking
-    explorer->moveBy(dx, 0);
-    if (hitsWall(explorer))
-        explorer->moveBy(-dx, 0);
+    if (dx == 0 && dy == 0)
+        return;
 
-    explorer->moveBy(0, dy);
-    if (hitsWall(explorer))
-        explorer->moveBy(0, -dy);
+    // Limit catch-up after a long pause. A diagonal has length sqrt(2).
+    double distance = WalkSpeed * qBound(0.0, elapsedSeconds, 0.1);
+    if (dx != 0 && dy != 0)
+        distance /= std::sqrt(2.0);
+
+    // Small axis-by-axis steps reuse Malek's collision checks and allow wall sliding.
+    while (distance > 0.0) {
+        double step = qMin(3.0, distance);
+        QPointF before = explorer->pos();
+        explorer->moveBy(dx * step, 0);
+        if (hitsWall(explorer))
+            explorer->setX(before.x());
+        explorer->moveBy(0, dy * step);
+        if (hitsWall(explorer))
+            explorer->setY(before.y());
+        distance -= step;
+    }
 }
 
 bool Level::hitsWall(Explorer* explorer)

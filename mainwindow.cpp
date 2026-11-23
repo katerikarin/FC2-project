@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include <QVBoxLayout>
 
 namespace {
 bool isMovementKey(int key) {
@@ -52,7 +53,12 @@ void MainWindow::setupScene() {
     view->setFrameShape(QFrame::NoFrame);
     view->setFocusPolicy(Qt::NoFocus);                      // keys go to MainWindow, not the view
     view->setAttribute(Qt::WA_TransparentForMouseEvents);   // clicks go to MainWindow (click-to-start)
-    setCentralWidget(view);
+    // Reserve the HUD strip in screen pixels, then fit the playable cave below it.
+    QVBoxLayout* layout = new QVBoxLayout(ui->centralwidget);
+    layout->setContentsMargins(0, Config::HudHeight, 0, 0);
+    layout->addWidget(view);
+    view->setSceneRect(scene->sceneRect().adjusted(0, Config::HudHeight, 0, 0));
+    view->viewport()->installEventFilter(this);
 
     level = new Level(scene, this);
     connect(level, &Level::clueCollected, this, &MainWindow::onClueCollected);
@@ -93,6 +99,12 @@ void MainWindow::setupTimers() {
 //  2. OVERLAY LAYOUT & BANNER HELPERS
 //     HUD (top strip) + centred banner. Re-run on every resize.
 // ========================================================================
+
+bool MainWindow::eventFilter(QObject* object, QEvent* event) {
+    if (event->type() == QEvent::Resize && view && object == view->viewport())
+        view->fitInView(view->sceneRect(), Qt::KeepAspectRatio);
+    return QMainWindow::eventFilter(object, event);
+}
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
@@ -226,9 +238,7 @@ void MainWindow::onGameTick() {
     if (state != GameState::Playing) return;
 
     const double dt = frameClock.restart() / 1000.0;
-    Q_UNUSED(dt);
-
-    level->update();   // movement, hazards, puzzles
+    level->update(dt);   // movement, hazards, puzzles
 
     hud->setPlayerHealth(1, level->getExplorerA()->getHealth(), Config::MaxHp);
     hud->setPlayerHealth(2, level->getExplorerB()->getHealth(), Config::MaxHp);

@@ -24,6 +24,7 @@ public:
 
     void loadLevel(int levelNumber);
     void update();
+    void update(double elapsedSeconds);
     void reset();
 
     // keys are remembered while they are held so both players can move together
@@ -46,6 +47,7 @@ private:
     void addSolid(const QRectF& r);       // invisible collision rectangle; World draws the wall art
     void keepInside(Explorer* explorer);  // helper safety net: never let an explorer leave the play area
     void moveExplorer(Explorer* explorer, int dx, int dy);
+    void moveExplorer(Explorer* explorer, int dx, int dy, double elapsedSeconds);
     bool hitsWall(Explorer* explorer);
 
     QGraphicsScene* scene;
