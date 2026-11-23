@@ -3,6 +3,7 @@
 
 #include <QGraphicsRectItem>
 #include <QColor>
+#include <QElapsedTimer>
 
 // One of the two players. For now it is drawn as a coloured box
 // (Ahmed can swap in sprites and animation later).
@@ -12,15 +13,17 @@ public:
     Explorer(QColor color, int startX, int startY, int maxHealth);
 
     // health
-    int getHealth();
-    int getMaxHealth();
+    int getHealth() const;
+    int getMaxHealth() const;
     void takeDamage(int amount);
-    bool isDead();
+    bool isDead() const;
+    void updateDamageFeedback();
 
     // puts the explorer back at the start with full health
     void reset();
 
 private:
+    QElapsedTimer timeSinceHit;
     int health;
     int maxHealth;
     int startX;

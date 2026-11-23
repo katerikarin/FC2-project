@@ -220,8 +220,10 @@ void MainWindow::onGameTick() {
 
     level->update();   // movement, hazards, puzzles
 
-    hud->setPlayerHealth(1, level->getExplorerA()->getHealth(), Config::MaxHp);
-    hud->setPlayerHealth(2, level->getExplorerB()->getHealth(), Config::MaxHp);
+    Explorer* a = level->getExplorerA();
+    Explorer* b = level->getExplorerB();
+    hud->setPlayerHealth(1, a->getHealth(), a->getMaxHealth());
+    hud->setPlayerHealth(2, b->getHealth(), b->getMaxHealth());
 
     if (isEitherExplorerDead()) {            // death BEFORE exit
         restartCurrentLevel();
@@ -267,10 +269,10 @@ void MainWindow::startLevel(int levelNumber) {
 void MainWindow::restartCurrentLevel() {
     currentLevelClues.clear();   // L1-19: only this level's clues are lost
 
-    hud->resetCurrentLevelHUD(Config::MaxHp, Config::MaxHp);
+    level->reset();   // restore the explorers before reading their HP for the HUD
+    hud->resetCurrentLevelHUD(level->getExplorerA()->getMaxHealth(), level->getExplorerB()->getMaxHealth());
     refreshClueHud();   // re-light earlier clues, keep this level's slot empty
 
-    level->reset();   // explorers back to the start with full health
     frameClock.restart();
 }
 
