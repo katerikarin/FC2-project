@@ -1,4 +1,6 @@
 #include "Explorer.h"
+#include <QPainter>
+#include <cmath>
 #include <QBrush>
 #include <QPen>
 
@@ -43,4 +45,64 @@ void Explorer::reset()
 {
     health = maxHealth;
     setPos(startX, startY);
+    facing = Down;
+    walking = false;
+    poseSeconds = 0.0;
+    frame = 0;
+    update();
+}
+
+void Explorer::setSpriteSheet(const QString& path)
+{
+    spriteSheet.load(path);
+    update();
+}
+
+void Explorer::animate(const QPointF& movement, double elapsedSeconds)
+{
+    Facing nextFacing = facing;
+    bool moving = !movement.isNull();
+    if (moving) {
+        // Favor the vertical sprite on a diagonal. Wall sliding uses the axis that moved.
+        if (qAbs(movement.x()) > qAbs(movement.y()) + 0.000001)
+            nextFacing = movement.x() < 0 ? Left : Right;
+        else
+            nextFacing = movement.y() < 0 ? Up : Down;
+    }
+
+    if (moving != walking || nextFacing != facing)
+        poseSeconds = 0.0;
+    else
+        poseSeconds += qMax(0.0, elapsedSeconds);
+
+    int nextFrame = 0;
+    if (moving) {
+        const int steps[] = {2, 0, 3, 0};
+        poseSeconds = std::fmod(poseSeconds, 0.48);
+        nextFrame = steps[int(poseSeconds / 0.12)];
+    } else {
+        // Brief idle pose once every 1.4 seconds, still facing the last travel direction.
+        poseSeconds = std::fmod(poseSeconds, 1.4);
+        if (poseSeconds >= 1.2)
+            nextFrame = 1;
+    }
+
+    walking = moving;
+    if (nextFacing != facing || nextFrame != frame) {
+        facing = nextFacing;
+        frame = nextFrame;
+        update();
+    }
+}
+
+void Explorer::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
+{
+    if (spriteSheet.isNull()) {
+        QGraphicsRectItem::paint(painter, option, widget);
+        return;
+    }
+    const int cellWidth = 24;
+    const int cellHeight = 28;
+    QRect source(frame * cellWidth, facing * cellHeight, cellWidth, cellHeight);
+    painter->drawPixmap(QRect(2, 0, cellWidth, cellHeight), spriteSheet, source);
 }
