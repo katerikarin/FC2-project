@@ -1,1 +1,6 @@
-<RCC/>
+<RCC>
+    <qresource prefix="/sprites">
+        <file alias="explorer_a.png">assets/sprites/explorer_a.png</file>
+        <file alias="explorer_b.png">assets/sprites/explorer_b.png</file>
+    </qresource>
+</RCC>
