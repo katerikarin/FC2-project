@@ -1,6 +1,9 @@
 #include "AltarPuzzle.h"
 #include <QBrush>
 #include <QPen>
+#include <QFont>
+#include <QGraphicsSimpleTextItem>
+#include <QGraphicsEllipseItem>
 
 const int ALTAR_SIZE = 64;
 const int HOLD_TICKS = 125;      // 125 ticks * 16 ms = 2 seconds
@@ -15,6 +18,13 @@ AltarPuzzle::AltarPuzzle(QGraphicsScene* scene, QObject* parent) : Puzzle(parent
     scene->addItem(altar1);
     scene->addItem(altar2);
 
+    // hint: a carving between the altars
+    QGraphicsSimpleTextItem* carving = new QGraphicsSimpleTextItem("Two must stand as one.\nNeither may leave until the light awakens.");
+    carving->setFont(QFont("Arial", 13, -1, true));
+    carving->setBrush(QBrush(QColor("#e6dfc8")));
+    carving->setPos(690, 300);
+    scene->addItem(carving);
+
     reset();
 }
 
@@ -24,6 +34,15 @@ QGraphicsRectItem* AltarPuzzle::makeAltar(int x, int y)
     altar->setPos(x, y);
     altar->setBrush(QBrush(QColor("#9a9486")));
     altar->setZValue(2);
+
+    // hint: two footprints on every altar
+    QGraphicsEllipseItem* leftFoot = new QGraphicsEllipseItem(18, 16, 11, 28, altar);
+    QGraphicsEllipseItem* rightFoot = new QGraphicsEllipseItem(35, 20, 11, 28, altar);
+    leftFoot->setBrush(QBrush(QColor("#5c574c")));
+    rightFoot->setBrush(QBrush(QColor("#5c574c")));
+    leftFoot->setPen(QPen(Qt::NoPen));
+    rightFoot->setPen(QPen(Qt::NoPen));
+
     return altar;
 }
 

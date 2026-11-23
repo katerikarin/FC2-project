@@ -25,6 +25,13 @@ LetterTrailPuzzle::LetterTrailPuzzle(QGraphicsScene* scene, QObject* parent) : P
     decoys.append(makeTile("T", 340, 200));
     decoys.append(makeTile("Z", 460, 320));
 
+    // hint sign on the wall of the trail room
+    QGraphicsSimpleTextItem* sign = new QGraphicsSimpleTextItem("Start on the glowing letter.\nFollow the arrows. Wrong letters hurt.");
+    sign->setFont(QFont("Arial", 13));
+    sign->setBrush(QBrush(QColor("#e6dfc8")));
+    sign->setPos(40, 90);
+    scene->addItem(sign);
+
     reset();
 }
 
