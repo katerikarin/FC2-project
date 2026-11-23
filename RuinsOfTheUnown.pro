@@ -15,6 +15,7 @@ SOURCES += \
     Puzzle.cpp \
     Sigil.cpp \
     hazard.cpp \
+    world.cpp \
     main.cpp \
     mainwindow.cpp
 
@@ -27,6 +28,7 @@ HEADERS += \
     Puzzle.h \
     Sigil.h \
     hazard.h \
+    world.h \
     mainwindow.h
 
 FORMS += \
