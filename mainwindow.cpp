@@ -2,6 +2,11 @@
 #include "ui_mainwindow.h"
 
 namespace {
+bool isMovementKey(int key) {
+    return key == Qt::Key_W || key == Qt::Key_A || key == Qt::Key_S || key == Qt::Key_D
+        || key == Qt::Key_Up || key == Qt::Key_Left || key == Qt::Key_Down || key == Qt::Key_Right;
+}
+
 // M2 TODO: replace with names read from the level definition (data-driven bonus).
 QString levelTitle(int n) {
     return n == 1 ? QStringLiteral("Level 1: Mossy Cave")
@@ -118,6 +123,8 @@ void MainWindow::showBanner(const QString& text) {
 // ========================================================================
 
 void MainWindow::setState(GameState newState) {
+    if (newState != GameState::Playing)
+        level->clearHeldKeys();
     state = newState;
 
     switch (state) {
@@ -170,7 +177,7 @@ void MainWindow::onTransitionTimerTimeout() {
 // ========================================================================
 //  4. INPUT HANDLING
 //     Mouse: only the Title click is meaningful in M1 (L1-01).
-//     Keys : TEMP debug hotkeys until Ahmed's input layer is merged.
+//     Keys: WASD for Explorer A, arrows for Explorer B.
 //     M2 TODO: menu navigation moves to QPushButton signals.
 // ========================================================================
 
@@ -181,27 +188,30 @@ void MainWindow::mousePressEvent(QMouseEvent* event) {
     QMainWindow::mousePressEvent(event);
 }
 
+bool MainWindow::event(QEvent* event) {
+    // A release may go to another window or widget after focus changes.
+    if (level && (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::FocusOut))
+        level->clearHeldKeys();
+    return QMainWindow::event(event);
+}
+
 void MainWindow::keyPressEvent(QKeyEvent* event) {
-    if (state != GameState::Playing) {
+    if (state == GameState::Playing && isMovementKey(event->key())) {
+        if (!event->isAutoRepeat())
+            level->keyPressed(event->key());
+        event->accept();
         return;
-    }
-
-    // holding a key sends repeated presses, ignore those
-    if (!event->isAutoRepeat()) {
-        level->keyPressed(event->key());
-    }
-
-    // TEMP: 3 collects Sigil 1 until the puzzles are merged
-    if (event->key() == Qt::Key_3) {
-        onClueCollected(1);
     }
 
     QMainWindow::keyPressEvent(event);
 }
 
 void MainWindow::keyReleaseEvent(QKeyEvent* event) {
-    if (!event->isAutoRepeat()) {
-        level->keyReleased(event->key());
+    if (state == GameState::Playing && isMovementKey(event->key())) {
+        if (!event->isAutoRepeat())
+            level->keyReleased(event->key());
+        event->accept();
+        return;
     }
     QMainWindow::keyReleaseEvent(event);
 }
