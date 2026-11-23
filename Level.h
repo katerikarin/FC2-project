@@ -6,9 +6,12 @@
 #include <QGraphicsRectItem>
 #include <QList>
 #include <QSet>
+#include <QRectF>
 #include "Explorer.h"
 #include "Puzzle.h"
 #include "Sigil.h"
+#include "Hazard.h"
+#include "World.h"
 
 // Holds everything inside one level: the two explorers, the walls, the exit and the puzzles.
 // MainWindow calls update() every game tick and reset() when the level restarts.
@@ -39,6 +42,8 @@ private slots:
 
 private:
     QGraphicsRectItem* addWall(int x, int y, int w, int h);
+    void addSolid(const QRectF& r);       // invisible collision rectangle; World draws the wall art
+    void keepInside(Explorer* explorer);  // helper safety net: never let an explorer leave the play area
     void moveExplorer(Explorer* explorer, int dx, int dy);
     bool hitsWall(Explorer* explorer);
 
@@ -49,6 +54,9 @@ private:
     QGraphicsRectItem* exitZone;
     QGraphicsRectItem* gate;
     QSet<int> heldKeys;
+
+    World* world;
+    QList<Hazard*> hazards;
 
     QList<Puzzle*> puzzles;
     Sigil* sigil;

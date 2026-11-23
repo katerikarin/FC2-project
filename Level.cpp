@@ -15,6 +15,7 @@ Level::Level(QGraphicsScene* scene, QObject* parent) : QObject(parent)
     exitZone = nullptr;
     gate = nullptr;
     sigil = nullptr;
+    world = nullptr;
 }
 
 void Level::loadLevel(int levelNumber)
@@ -23,18 +24,25 @@ void Level::loadLevel(int levelNumber)
     if (levelNumber != 1)
         return;
 
-    // outer walls (the HUD covers the top 52 pixels)
-    addWall(0, 52, 1024, 16);
-    addWall(0, 752, 1024, 16);
-    addWall(0, 52, 16, 716);
-    addWall(1008, 52, 16, 716);
+    // the wall rectangles below are invisible and only exist for collisions.
+    world = new World(scene);
+    QList<QRectF> solids = world->solidRects();
+    for (int i = 0; i < solids.size(); i++)
+        addSolid(solids[i]);
 
-    // wall between the trail room (left) and the altar room (right)
-    // the gap from y = 360 to 440 is closed by the gate until the letter trail is solved
-    addWall(600, 68, 24, 292);
-    addWall(600, 440, 24, 312);
-    gate = addWall(600, 360, 24, 80);
+    // the gap in the divider wall (between the trail room and the altar room)
+    // is closed by the gate until the letter trail is solved
+    QRectF g = world->gateRect();
+    gate = addWall(int(g.x()), int(g.y()), int(g.width()), int(g.height()));
     gate->setBrush(QBrush(QColor("#8a6d3b")));
+    gate->setZValue(4);
+
+    hazards.append(new SpikeHazard(448, 544, 96, 48));    // trail room, bottom
+    hazards.append(new SpikeHazard(470, 180, 96, 48));    // trail room, top
+    hazards.append(new PoisonPool(700, 520, 112, 64));    // altar room, bottom
+    hazards.append(new PoisonPool(800, 200, 96, 64));     // altar room, top
+    for (int i = 0; i < hazards.size(); i++)
+        scene->addItem(hazards[i]);
 
     // exit in the top right corner
     exitZone = new QGraphicsRectItem(0, 0, 90, 90);
@@ -89,6 +97,12 @@ void Level::update()
     moveExplorer(explorerA, ax, ay);
     moveExplorer(explorerB, bx, by);
 
+    for (int i = 0; i < hazards.size(); i++)
+        hazards[i]->update(explorerA, explorerB);
+
+    keepInside(explorerA);
+    keepInside(explorerB);
+
     // puzzles check where the explorers are standing
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->update(explorerA, explorerB);
@@ -103,6 +117,9 @@ void Level::reset()
     explorerA->reset();
     explorerB->reset();
     heldKeys.clear();
+
+    for (int i = 0; i < hazards.size(); i++)
+        hazards[i]->reset();
 
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->reset();
@@ -146,6 +163,40 @@ QGraphicsRectItem* Level::addWall(int x, int y, int w, int h)
     scene->addItem(wall);
     walls.append(wall);
     return wall;
+}
+
+// invisible collision rectangle: World already paints the stone art, so this
+// item has no brush and no pen. It must stay "visible" because hitsWall()
+// ignores hidden walls (that is how the open gate stops blocking).
+void Level::addSolid(const QRectF& r)
+{
+    QGraphicsRectItem* wall = new QGraphicsRectItem(0, 0, r.width(), r.height());
+    wall->setPos(r.x(), r.y());
+    wall->setBrush(Qt::NoBrush);
+    wall->setPen(QPen(Qt::NoPen));
+    scene->addItem(wall);
+    walls.append(wall);
+}
+
+// Safety net for L1-05: if anything ever pushes an explorer past the outer wall,
+// put it back inside the walkable area.
+void Level::keepInside(Explorer* explorer)
+{
+    if (world == nullptr)
+        return;
+
+    QRectF area = world->playArea();
+    QRectF box = explorer->sceneBoundingRect();
+
+    double dx = 0;
+    double dy = 0;
+    if (box.left() < area.left())     dx = area.left() - box.left();
+    if (box.right() > area.right())   dx = area.right() - box.right();
+    if (box.top() < area.top())       dy = area.top() - box.top();
+    if (box.bottom() > area.bottom()) dy = area.bottom() - box.bottom();
+
+    if (dx != 0 || dy != 0)
+        explorer->moveBy(dx, dy);
 }
 
 void Level::openGate()
