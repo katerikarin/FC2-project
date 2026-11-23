@@ -8,6 +8,7 @@ class MovementTest : public QObject
 private slots:
     void eightDirections();
     void timingAndWalls();
+    void resizedViewport();
 };
 
 void MovementTest::eightDirections()
@@ -72,6 +73,22 @@ void MovementTest::timingAndWalls()
     for (int i = 0; i < 100; i++) level.update(0.1);
     QVERIFY(a->sceneBoundingRect().right() <= 1008 && a->x() > 970);
     QVERIFY(a->sceneBoundingRect().top() >= 68 && a->y() < 75);
+}
+
+void MovementTest::resizedViewport()
+{
+    MainWindow window;
+    window.show();
+    QTest::mouseClick(&window, Qt::LeftButton);
+    QGraphicsView* view = window.findChild<QGraphicsView*>();
+    QVERIFY(view);
+    for (QSize size : {QSize(900, 570), QSize(1100, 800), QSize(800, 850)}) {
+        window.resize(size);
+        QApplication::processEvents();
+        QRectF visible = view->mapToScene(view->viewport()->rect()).boundingRect();
+        QVERIFY(visible.contains(QRectF(16, 68, 992, 684)));
+        QVERIFY(view->viewport()->mapTo(&window, QPoint()).y() >= Config::HudHeight);
+    }
 }
 
 QTEST_MAIN(MovementTest)

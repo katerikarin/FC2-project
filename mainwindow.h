@@ -58,6 +58,7 @@ public slots:
 protected:
     // ===================== QT EVENT OVERRIDES ===========================
     void resizeEvent(QResizeEvent* event) override;
+    bool eventFilter(QObject* object, QEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;     // Ahmed (B1): replace debug keys with InputHandler
     void keyReleaseEvent(QKeyEvent* event) override;   // Ahmed (B1): needed for no-stuck-keys (checklist #2/#3)
     void mousePressEvent(QMouseEvent* event) override; // M2: stays for click-to-start only
@@ -104,7 +105,7 @@ private:
     // ---- Qt scaffolding
     Ui::MainWindow* ui;
     QGraphicsScene* scene;
-    QGraphicsView*  view;
+    QGraphicsView*  view = nullptr;
     HUDWidget*      hud;
     QLabel*         overlayBanner;   // mouse-transparent; M2 menus need a separate container
 
