@@ -1,6 +1,7 @@
 #include "Level.h"
 #include "mainwindow.h"
 #include "LetterTrailPuzzle.h"
+#include "AltarPuzzle.h"
 #include <QBrush>
 #include <QPen>
 
@@ -57,6 +58,11 @@ void Level::loadLevel(int levelNumber)
     // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
     sigil = new Sigil(scene, 1, 816, 400, this);
     connect(sigil, &Sigil::collected, this, &Level::clueCollected);
+
+    // puzzle 2: the twin altars in the right room (needs both explorers)
+    AltarPuzzle* altarPuzzle = new AltarPuzzle(scene, this);
+    puzzles.append(altarPuzzle);
+    connect(altarPuzzle, &Puzzle::solved, sigil, &Sigil::appear);
 }
 
 void Level::update()
