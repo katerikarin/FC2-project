@@ -36,6 +36,8 @@ public:
     Explorer* getExplorerA();
     Explorer* getExplorerB();
     bool bothAtExit();
+    int mapPixelWidth() const;
+    int mapPixelHeight() const;
 
 signals:
     void clueCollected(int clueId);
@@ -61,7 +63,7 @@ private:
 
     World* world;
     TileMap* tileMap;
-    bool useLegacyWorld = true;
+    bool useLegacyWorld = false;
     QList<Hazard*> hazards;
 
     QList<Puzzle*> puzzles;

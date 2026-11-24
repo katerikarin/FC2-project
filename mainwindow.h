@@ -31,13 +31,19 @@ enum class GameState {
 // ============================= GAME CONSTANTS ===========================
 // Single source of truth for "magic numbers". Fill from the team design freeze (A5).
 namespace Config {
-constexpr int WindowW          = 1024;
-constexpr int WindowH          = 768;
+constexpr int TilePx           = 24;
+constexpr int ViewportTilesW   = 15;
+constexpr int ViewportTilesH   = 10;
+constexpr int LogicalViewW     = ViewportTilesW * TilePx;   // 360
+constexpr int LogicalViewH     = ViewportTilesH * TilePx;   // 240
+constexpr int DefaultScale     = 3;
 constexpr int HudHeight        = 52;
+constexpr int WindowW          = LogicalViewW * DefaultScale;               // 1080
+constexpr int WindowH          = LogicalViewH * DefaultScale + HudHeight;   // 772
 constexpr int TickMs           = 16;     // ~60 FPS
 constexpr int CompleteBannerMs = 2500;   // L1-18
-constexpr int MaxHp            = 100;    // TODO(A5): confirm with team HP table
-constexpr int TotalLevels      = 5;      // M2
+constexpr int MaxHp            = 100;
+constexpr int TotalLevels      = 5;
 }
 
 class MainWindow : public QMainWindow {
@@ -76,6 +82,9 @@ private:
     void setupTimers();
     void updateOverlayLayout();
     void showBanner(const QString& text);
+
+    void updateViewportScale();
+    void updateCamera();
     // M2 TODO: setupMenus() -> own QWidget container WITHOUT WA_TransparentForMouseEvents
 
     // ===================== 2. STATE MACHINE =============================

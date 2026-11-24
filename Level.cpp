@@ -27,66 +27,71 @@ void Level::loadLevel(int levelNumber)
         QList<QRectF> solids = world->solidRects();
         for (int i = 0; i < solids.size(); i++)
             addSolid(solids[i]);
+
+        // the gap in the divider wall (between the trail room and the altar room)
+        // is closed by the gate until the letter trail is solved
+        QRectF g = world->gateRect();
+        gate = addWall(int(g.x()), int(g.y()), int(g.width()), int(g.height()));
+        gate->setBrush(QBrush(QColor("#8a6d3b")));
+        gate->setZValue(4);
+
+        hazards.append(new SpikeHazard(448, 544, 96, 48));    // trail room, bottom
+        hazards.append(new SpikeHazard(470, 180, 96, 48));    // trail room, top
+        hazards.append(new PoisonPool(700, 520, 112, 64));    // altar room, bottom
+        hazards.append(new PoisonPool(800, 200, 96, 64));     // altar room, top
+        for (int i = 0; i < hazards.size(); i++)
+            scene->addItem(hazards[i]);
+
+        // exit in the top right corner
+        exitZone = new QGraphicsRectItem(0, 0, 90, 90);
+        exitZone->setPos(900, 84);
+        exitZone->setBrush(QBrush(QColor("#c9b458")));
+        exitZone->setPen(QPen(Qt::NoPen));
+        exitZone->setZValue(1);
+        scene->addItem(exitZone);
+
+        // the two explorers start in the bottom left
+        explorerA = new Explorer(QColor("#3fae5a"), 80, 690, Config::MaxHp);
+        explorerB = new Explorer(QColor("#3f7fd6"), 140, 690, Config::MaxHp);
+        explorerA->setSpriteSheet(QStringLiteral(":/sprites/explorer_a.png"));
+        explorerB->setSpriteSheet(QStringLiteral(":/sprites/explorer_b.png"));
+        scene->addItem(explorerA);
+        scene->addItem(explorerB);
+
+        // puzzle 1: the letter trail in the left room
+        LetterTrailPuzzle* trailPuzzle = new LetterTrailPuzzle(scene, this);
+        puzzles.append(trailPuzzle);
+        connect(trailPuzzle, &Puzzle::solved, this, &Level::openGate);
+
+        // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
+        sigil = new Sigil(scene, 1, 816, 400, this);
+        connect(sigil, &Sigil::collected, this, &Level::clueCollected);
+
+        // puzzle 2: the twin altars in the right room (needs both explorers)
+        AltarPuzzle* altarPuzzle = new AltarPuzzle(scene, this);
+        puzzles.append(altarPuzzle);
+        connect(altarPuzzle, &Puzzle::solved, sigil, &Sigil::appear);
     } else {
         tileMap = new TileMap(scene);
         QList<QRectF> solids = tileMap->solidRects();
         for (int i = 0; i < solids.size(); i++)
             addSolid(solids[i]);
+
+        const QPointF startA = tileMap->startPosA();
+        const QPointF startB = tileMap->startPosB();
+        explorerA = new Explorer(QColor("#3fae5a"), int(startA.x()), int(startA.y()), Config::MaxHp);
+        explorerB = new Explorer(QColor("#3f7fd6"), int(startB.x()), int(startB.y()), Config::MaxHp);
+        explorerA->setSpriteSheet(QStringLiteral(":/sprites/explorer_a.png"));
+        explorerB->setSpriteSheet(QStringLiteral(":/sprites/explorer_b.png"));
+        scene->addItem(explorerA);
+        scene->addItem(explorerB);
     }
 
     // Milestone 1 only has level 1 (mossy cave)
     if (levelNumber != 1)
         return;
 
-    // the wall rectangles below are invisible and only exist for collisions.
-    world = new World(scene);
-    QList<QRectF> solids = world->solidRects();
-    for (int i = 0; i < solids.size(); i++)
-        addSolid(solids[i]);
 
-    // the gap in the divider wall (between the trail room and the altar room)
-    // is closed by the gate until the letter trail is solved
-    QRectF g = world->gateRect();
-    gate = addWall(int(g.x()), int(g.y()), int(g.width()), int(g.height()));
-    gate->setBrush(QBrush(QColor("#8a6d3b")));
-    gate->setZValue(4);
-
-    hazards.append(new SpikeHazard(448, 544, 96, 48));    // trail room, bottom
-    hazards.append(new SpikeHazard(470, 180, 96, 48));    // trail room, top
-    hazards.append(new PoisonPool(700, 520, 112, 64));    // altar room, bottom
-    hazards.append(new PoisonPool(800, 200, 96, 64));     // altar room, top
-    for (int i = 0; i < hazards.size(); i++)
-        scene->addItem(hazards[i]);
-
-    // exit in the top right corner
-    exitZone = new QGraphicsRectItem(0, 0, 90, 90);
-    exitZone->setPos(900, 84);
-    exitZone->setBrush(QBrush(QColor("#c9b458")));
-    exitZone->setPen(QPen(Qt::NoPen));
-    exitZone->setZValue(1);
-    scene->addItem(exitZone);
-
-    // the two explorers start in the bottom left
-    explorerA = new Explorer(QColor("#3fae5a"), 80, 690, Config::MaxHp);
-    explorerB = new Explorer(QColor("#3f7fd6"), 140, 690, Config::MaxHp);
-    explorerA->setSpriteSheet(QStringLiteral(":/sprites/explorer_a.png"));
-    explorerB->setSpriteSheet(QStringLiteral(":/sprites/explorer_b.png"));
-    scene->addItem(explorerA);
-    scene->addItem(explorerB);
-
-    // puzzle 1: the letter trail in the left room
-    LetterTrailPuzzle* trailPuzzle = new LetterTrailPuzzle(scene, this);
-    puzzles.append(trailPuzzle);
-    connect(trailPuzzle, &Puzzle::solved, this, &Level::openGate);
-
-    // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
-    sigil = new Sigil(scene, 1, 816, 400, this);
-    connect(sigil, &Sigil::collected, this, &Level::clueCollected);
-
-    // puzzle 2: the twin altars in the right room (needs both explorers)
-    AltarPuzzle* altarPuzzle = new AltarPuzzle(scene, this);
-    puzzles.append(altarPuzzle);
-    connect(altarPuzzle, &Puzzle::solved, sigil, &Sigil::appear);
 }
 
 void Level::update()
@@ -131,7 +136,8 @@ void Level::update(double elapsedSeconds)
     // puzzles check where the explorers are standing
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->update(explorerA, explorerB);
-    sigil->update(explorerA, explorerB);
+    if (sigil)
+        sigil->update(explorerA, explorerB);
     explorerA->updateDamageFeedback();
     explorerB->updateDamageFeedback();
 }
@@ -150,8 +156,10 @@ void Level::reset()
 
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->reset();
-    sigil->reset();
-    gate->show();   // the gate closes again on a restart
+    if (sigil)
+        sigil->reset();
+    if (gate)
+        gate->show();
 }
 
 void Level::clearHeldKeys()
@@ -186,6 +194,16 @@ bool Level::bothAtExit()
     return explorerA->collidesWithItem(exitZone) && explorerB->collidesWithItem(exitZone);
 }
 
+int Level::mapPixelWidth() const
+{
+    return tileMap ? tileMap->pixelWidth() : World::Cols * World::TileSize;
+}
+
+int Level::mapPixelHeight() const
+{
+    return tileMap ? tileMap->pixelHeight() : World::Rows * World::TileSize;
+}
+
 QGraphicsRectItem* Level::addWall(int x, int y, int w, int h)
 {
     QGraphicsRectItem* wall = new QGraphicsRectItem(0, 0, w, h);
@@ -214,10 +232,10 @@ void Level::addSolid(const QRectF& r)
 // put it back inside the walkable area.
 void Level::keepInside(Explorer* explorer)
 {
-    if (world == nullptr)
+    if (tileMap == nullptr && world == nullptr)
         return;
 
-    QRectF area = world->playArea();
+    QRectF area = tileMap ? tileMap->playArea() : world->playArea();
     QRectF box = explorer->sceneBoundingRect();
 
     double dx = 0;
