@@ -110,3 +110,59 @@ void PoisonPool::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidg
     painter->drawEllipse(QPointF(r.left() + r.width() * 0.55, r.top() + r.height() * 0.65), 4, 4);
     painter->drawEllipse(QPointF(r.left() + r.width() * 0.78, r.top() + r.height() * 0.35), 6, 6);
 }
+
+
+// ---------------------------------------------------------------- v2 sprite spikes
+TileSpikeHazard::TileSpikeHazard(int x, int y, int tileSize, int damage)
+    : Hazard(x, y, tileSize, tileSize, damage)
+    , sheet(QStringLiteral(":/sprites/spikes.png"))
+{
+}
+
+void TileSpikeHazard::triggerBurst()
+{
+    burstTimer.start();
+    QGraphicsItem::update();
+}
+
+void TileSpikeHazard::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
+{
+    if (sheet.isNull())
+        return;
+
+    int frame = 2; // extended spikes
+    if (burstTimer.isValid()) {
+        const qint64 ms = burstTimer.elapsed();
+        if (ms < 120)
+            frame = 1; // rising
+        else if (ms < 700)
+            frame = 2; // extended burst
+        else
+            burstTimer.invalidate();
+    }
+
+    const int w = int(rect().width());
+    const int h = int(rect().height());
+    painter->drawPixmap(QRect(0, 0, w, h), sheet, QRect(frame * 24, 0, 24, 24));
+}
+
+// ---------------------------------------------------------------- v2 sprite poison
+TilePoisonHazard::TilePoisonHazard(int x, int y, int variant, int tileSize, int damage)
+    : Hazard(x, y, tileSize, tileSize, damage)
+    , sheet(QStringLiteral(":/sprites/poison_spill.png"))
+    , variantIndex(qBound(0, variant, 1))
+{
+    animTimer.start();
+}
+
+void TilePoisonHazard::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
+{
+    if (sheet.isNull())
+        return;
+
+    const int animFrame = int((animTimer.elapsed() / 450) % 2);
+    const int col = variantIndex * 2 + animFrame;
+    const int w = int(rect().width());
+    const int h = int(rect().height());
+    painter->drawPixmap(QRect(0, 0, w, h), sheet, QRect(col * 24, 0, 24, 24));
+}

@@ -15,6 +15,7 @@
 #include "TileMap.h"
 #include <QGraphicsPixmapItem>
 #include "SteppingStonePuzzle.h"
+#include "PressurePlatePuzzle.h"
 
 // Holds everything inside one level: the two explorers, the walls, the exit and the puzzles.
 // MainWindow calls update() every game tick and reset() when the level restarts.
@@ -48,6 +49,7 @@ signals:
 private slots:
     void openGate();
     void openEntrance();
+    void onWrongPlateTriggered();
 
 private:
     QGraphicsRectItem* addWall(int x, int y, int w, int h);
@@ -61,6 +63,8 @@ private:
 
     void updateEntranceVisual();
     void updateFlashEffect(double elapsedSeconds);
+    PressurePlatePuzzle* platePuzzle = nullptr;
+    QList<TileSpikeHazard*> tileSpikes;
 
     QGraphicsPixmapItem* entranceItem = nullptr;
     QPixmap entranceSheet;

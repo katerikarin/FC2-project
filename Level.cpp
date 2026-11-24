@@ -111,6 +111,45 @@ void Level::loadLevel(int levelNumber)
             this);
         puzzles.append(steppingPuzzle);
         connect(steppingPuzzle, &Puzzle::solved, this, &Level::openEntrance);
+        // Area 1 poison spills (p = variant 0, q = variant 1)
+        for (const QPoint& cell : tileMap->poisonCellsA()) {
+            auto* poison = new TilePoisonHazard(cell.x() * TileMap::TileSize, cell.y() * TileMap::TileSize, 0, TileMap::TileSize, 5);
+            hazards.append(poison);
+            scene->addItem(poison);
+        }
+        for (const QPoint& cell : tileMap->poisonCellsB()) {
+            auto* poison = new TilePoisonHazard(cell.x() * TileMap::TileSize, cell.y() * TileMap::TileSize, 1, TileMap::TileSize, 5);
+            hazards.append(poison);
+            scene->addItem(poison);
+        }
+
+        // Area 2 spike hazards (S)
+        for (const QPoint& cell : tileMap->spikeCells()) {
+            auto* spike = new TileSpikeHazard(cell.x() * TileMap::TileSize, cell.y() * TileMap::TileSize, TileMap::TileSize, 10);
+            tileSpikes.append(spike);
+            hazards.append(spike);
+            scene->addItem(spike);
+        }
+
+        // Sigil 1 at L (appears when both final plates are held for ~3 s)
+        const QPointF sigilCenter = tileMap->sigilPos() + QPointF(TileMap::TileSize / 2.0, TileMap::TileSize / 2.0);
+        sigil = new Sigil(scene, 1, int(sigilCenter.x()), int(sigilCenter.y()), this);
+        connect(sigil, &Sigil::collected, this, &Level::clueCollected);
+
+        // Area 2: Pressure plates (c -> a -> e) + dual final plates (X & Y)
+        QHash<char, QRectF> plateRects;
+        for (char id : {'a', 'b', 'c', 'd', 'e'})
+            plateRects.insert(id, tileMap->plateRect(id));
+
+        platePuzzle = new PressurePlatePuzzle(
+            scene,
+            plateRects,
+            tileMap->finalPlateRectA(),
+            tileMap->finalPlateRectB(),
+            this);
+        puzzles.append(platePuzzle);
+        connect(platePuzzle, &PressurePlatePuzzle::wrongPlateTriggered, this, &Level::onWrongPlateTriggered);
+        connect(platePuzzle, &Puzzle::solved, sigil, &Sigil::appear);
     }
 
     // Milestone 1 only has level 1 (mossy cave)
@@ -395,10 +434,12 @@ void Level::triggerFlash()
         flashFxItem->show();
     }
 
-    if (steppingPuzzle != nullptr)
+    if (steppingPuzzle != nullptr && !steppingPuzzle->isSolved()) {
         steppingPuzzle->revealNextStone();
+    } else if (platePuzzle != nullptr && !platePuzzle->isSolved()) {
+        platePuzzle->revealNextPlate();
+    }
 }
-
 void Level::updateFlashEffect(double elapsedSeconds)
 {
     if (flashFxRemaining <= 0.0 || !flashFxItem)
@@ -415,4 +456,13 @@ void Level::updateFlashEffect(double elapsedSeconds)
         flashFxItem->setPos(explorerA->pos());
     const int frame = (int(flashFxRemaining * 10.0) % 2 == 0) ? 0 : 1;
     flashFxItem->setPixmap(flashFxSheet.copy(frame * 24, 0, 24, 24));
+}
+
+void Level::onWrongPlateTriggered()
+{
+    for (TileSpikeHazard* spike : tileSpikes)
+        spike->triggerBurst();
+
+    if (explorerB != nullptr)
+        explorerB->takeDamage(10);
 }

@@ -12,6 +12,7 @@ SOURCES += \
     HUDWidget.cpp \
     Level.cpp \
     LetterTrailPuzzle.cpp \
+    PressurePlatePuzzle.cpp \
     Puzzle.cpp \
     Sigil.cpp \
     SteppingStonePuzzle.cpp \
@@ -27,6 +28,7 @@ HEADERS += \
     HUDWidget.h \
     Level.h \
     LetterTrailPuzzle.h \
+    PressurePlatePuzzle.h \
     Puzzle.h \
     Sigil.h \
     SteppingStonePuzzle.h \
