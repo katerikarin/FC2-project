@@ -17,63 +17,167 @@ Level::Level(QGraphicsScene* scene, QObject* parent) : QObject(parent)
     gate = nullptr;
     sigil = nullptr;
     world = nullptr;
+    tileMap = nullptr;
 }
 
 void Level::loadLevel(int levelNumber)
 {
+    if (useLegacyWorld) {
+        world = new World(scene);
+        QList<QRectF> solids = world->solidRects();
+        for (int i = 0; i < solids.size(); i++)
+            addSolid(solids[i]);
+
+        // the gap in the divider wall (between the trail room and the altar room)
+        // is closed by the gate until the letter trail is solved
+        QRectF g = world->gateRect();
+        gate = addWall(int(g.x()), int(g.y()), int(g.width()), int(g.height()));
+        gate->setBrush(QBrush(QColor("#8a6d3b")));
+        gate->setZValue(4);
+
+        hazards.append(new SpikeHazard(448, 544, 96, 48));    // trail room, bottom
+        hazards.append(new SpikeHazard(470, 180, 96, 48));    // trail room, top
+        hazards.append(new PoisonPool(700, 520, 112, 64));    // altar room, bottom
+        hazards.append(new PoisonPool(800, 200, 96, 64));     // altar room, top
+        for (int i = 0; i < hazards.size(); i++)
+            scene->addItem(hazards[i]);
+
+        // exit in the top right corner
+        exitZone = new QGraphicsRectItem(0, 0, 90, 90);
+        exitZone->setPos(900, 84);
+        exitZone->setBrush(QBrush(QColor("#c9b458")));
+        exitZone->setPen(QPen(Qt::NoPen));
+        exitZone->setZValue(1);
+        scene->addItem(exitZone);
+
+        // the two explorers start in the bottom left
+        explorerA = new Explorer(QColor("#3fae5a"), 80, 690, Config::MaxHp);
+        explorerB = new Explorer(QColor("#3f7fd6"), 140, 690, Config::MaxHp);
+        explorerA->setSpriteSheet(QStringLiteral(":/sprites/explorer_a.png"));
+        explorerB->setSpriteSheet(QStringLiteral(":/sprites/explorer_b.png"));
+        scene->addItem(explorerA);
+        scene->addItem(explorerB);
+
+        // puzzle 1: the letter trail in the left room
+        LetterTrailPuzzle* trailPuzzle = new LetterTrailPuzzle(scene, this);
+        puzzles.append(trailPuzzle);
+        connect(trailPuzzle, &Puzzle::solved, this, &Level::openGate);
+
+        // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
+        sigil = new Sigil(scene, 1, 816, 400, this);
+        connect(sigil, &Sigil::collected, this, &Level::clueCollected);
+
+        // puzzle 2: the twin altars in the right room (needs both explorers)
+        AltarPuzzle* altarPuzzle = new AltarPuzzle(scene, this);
+        puzzles.append(altarPuzzle);
+        connect(altarPuzzle, &Puzzle::solved, sigil, &Sigil::appear);
+    } else {
+        tileMap = new TileMap(scene);
+        QList<QRectF> solids = tileMap->solidRects(entranceOpen, gateCleared);
+        for (int i = 0; i < solids.size(); i++)
+            addSolid(solids[i]);
+
+        const QPointF startA = tileMap->startPosA();
+        const QPointF startB = tileMap->startPosB();
+        explorerA = new Explorer(QColor("#3fae5a"), int(startA.x()), int(startA.y()), Config::MaxHp, TileMap::TileSize);
+        explorerB = new Explorer(QColor("#3f7fd6"), int(startB.x()), int(startB.y()), Config::MaxHp, TileMap::TileSize);
+        explorerA->setSpriteSheet(QStringLiteral(":/sprites/trainer1.png"));
+        explorerB->setSpriteSheet(QStringLiteral(":/sprites/trainer2.png"));
+        explorerA->setFacing(Explorer::Up);
+        explorerB->setFacing(Explorer::Up);
+        scene->addItem(explorerA);
+        scene->addItem(explorerB);
+        // Hidden rock entrance (48x24, frame 0 = closed, frame 1 = open)
+        entranceSheet.load(QStringLiteral(":/sprites/rock_entrance.png"));
+        entranceItem = new QGraphicsPixmapItem();
+        entranceItem->setPos(tileMap->entranceRect().topLeft());
+        entranceItem->setZValue(3);
+        scene->addItem(entranceItem);
+        updateEntranceVisual();
+
+        // Flash ability VFX (48x24 -> 2 frames of 24x24)
+        flashFxSheet.load(QStringLiteral(":/fx/flash_glow.png"));
+        flashFxItem = new QGraphicsPixmapItem();
+        flashFxItem->setZValue(12);
+        flashFxItem->hide();
+        scene->addItem(flashFxItem);
+
+        // Area 1: Stepping stones (1..5) + decoy stones (o)
+        steppingPuzzle = new SteppingStonePuzzle(
+            scene,
+            tileMap->steppingStoneCells(),
+            tileMap->decoyStoneCells(),
+            TileMap::TileSize,
+            this);
+        puzzles.append(steppingPuzzle);
+        connect(steppingPuzzle, &Puzzle::solved, this, &Level::openEntrance);
+        // Area 1 poison spills (p = variant 0, q = variant 1)
+        for (const QPoint& cell : tileMap->poisonCellsA()) {
+            auto* poison = new TilePoisonHazard(cell.x() * TileMap::TileSize, cell.y() * TileMap::TileSize, 0, TileMap::TileSize, 5);
+            hazards.append(poison);
+            scene->addItem(poison);
+        }
+        for (const QPoint& cell : tileMap->poisonCellsB()) {
+            auto* poison = new TilePoisonHazard(cell.x() * TileMap::TileSize, cell.y() * TileMap::TileSize, 1, TileMap::TileSize, 5);
+            hazards.append(poison);
+            scene->addItem(poison);
+        }
+
+        // Area 2 spike hazards (S)
+        for (const QPoint& cell : tileMap->spikeCells()) {
+            auto* spike = new TileSpikeHazard(cell.x() * TileMap::TileSize, cell.y() * TileMap::TileSize, TileMap::TileSize, 10);
+            tileSpikes.append(spike);
+            hazards.append(spike);
+            scene->addItem(spike);
+        }
+
+        // Sigil 1 at L (appears when both final plates are held for ~3 s)
+        const QPointF sigilCenter = tileMap->sigilPos() + QPointF(TileMap::TileSize / 2.0, TileMap::TileSize / 2.0);
+        sigil = new Sigil(scene, 1, int(sigilCenter.x()), int(sigilCenter.y()), this);
+        connect(sigil, &Sigil::collected, this, &Level::clueCollected);
+
+        // Area 2: Pressure plates (c -> a -> e) + dual final plates (X & Y)
+        QHash<char, QRectF> plateRects;
+        for (char id : {'a', 'b', 'c', 'd', 'e'})
+            plateRects.insert(id, tileMap->plateRect(id));
+
+        platePuzzle = new PressurePlatePuzzle(
+            scene,
+            plateRects,
+            tileMap->finalPlateRectA(),
+            tileMap->finalPlateRectB(),
+            this);
+        puzzles.append(platePuzzle);
+        connect(platePuzzle, &PressurePlatePuzzle::wrongPlateTriggered, this, &Level::onWrongPlateTriggered);
+        connect(platePuzzle, &Puzzle::solved, sigil, &Sigil::appear);
+
+        // Northern boulder gate (48x48: 0 = intact, 1 = weakened, 2 = cleared black passage)
+        gateSheet.load(QStringLiteral(":/sprites/boulder_gate.png"));
+        gateItem = new QGraphicsPixmapItem();
+        gateItem->setPos(tileMap->gateRect().topLeft());
+        gateItem->setZValue(3);
+        scene->addItem(gateItem);
+        updateGateVisual();
+
+        // Collecting Sigil 1 weakens the boulder gate
+        connect(sigil, &Sigil::collected, this, &Level::weakenGate);
+
+        // Water Cannon VFX pool (up to 3 tiles of 24x24 animated water stream)
+        cannonFxSheet.load(QStringLiteral(":/fx/water_cannon.png"));
+        for (int i = 0; i < 3; ++i) {
+            auto* fx = new QGraphicsPixmapItem();
+            fx->setZValue(12);
+            fx->hide();
+            scene->addItem(fx);
+            cannonFxItems.append(fx);
+        }
+    }
+
     // Milestone 1 only has level 1 (mossy cave)
     if (levelNumber != 1)
         return;
 
-    // the wall rectangles below are invisible and only exist for collisions.
-    world = new World(scene);
-    QList<QRectF> solids = world->solidRects();
-    for (int i = 0; i < solids.size(); i++)
-        addSolid(solids[i]);
 
-    // the gap in the divider wall (between the trail room and the altar room)
-    // is closed by the gate until the letter trail is solved
-    QRectF g = world->gateRect();
-    gate = addWall(int(g.x()), int(g.y()), int(g.width()), int(g.height()));
-    gate->setBrush(QBrush(QColor("#8a6d3b")));
-    gate->setZValue(4);
-
-    hazards.append(new SpikeHazard(448, 544, 96, 48));    // trail room, bottom
-    hazards.append(new SpikeHazard(470, 180, 96, 48));    // trail room, top
-    hazards.append(new PoisonPool(700, 520, 112, 64));    // altar room, bottom
-    hazards.append(new PoisonPool(800, 200, 96, 64));     // altar room, top
-    for (int i = 0; i < hazards.size(); i++)
-        scene->addItem(hazards[i]);
-
-    // exit in the top right corner
-    exitZone = new QGraphicsRectItem(0, 0, 90, 90);
-    exitZone->setPos(900, 84);
-    exitZone->setBrush(QBrush(QColor("#c9b458")));
-    exitZone->setPen(QPen(Qt::NoPen));
-    exitZone->setZValue(1);
-    scene->addItem(exitZone);
-
-    // the two explorers start in the bottom left
-    explorerA = new Explorer(QColor("#3fae5a"), 80, 690, Config::MaxHp);
-    explorerB = new Explorer(QColor("#3f7fd6"), 140, 690, Config::MaxHp);
-    explorerA->setSpriteSheet(QStringLiteral(":/sprites/explorer_a.png"));
-    explorerB->setSpriteSheet(QStringLiteral(":/sprites/explorer_b.png"));
-    scene->addItem(explorerA);
-    scene->addItem(explorerB);
-
-    // puzzle 1: the letter trail in the left room
-    LetterTrailPuzzle* trailPuzzle = new LetterTrailPuzzle(scene, this);
-    puzzles.append(trailPuzzle);
-    connect(trailPuzzle, &Puzzle::solved, this, &Level::openGate);
-
-    // sigil 1 sits between the two altars and shows up when the altar puzzle is solved
-    sigil = new Sigil(scene, 1, 816, 400, this);
-    connect(sigil, &Sigil::collected, this, &Level::clueCollected);
-
-    // puzzle 2: the twin altars in the right room (needs both explorers)
-    AltarPuzzle* altarPuzzle = new AltarPuzzle(scene, this);
-    puzzles.append(altarPuzzle);
-    connect(altarPuzzle, &Puzzle::solved, sigil, &Sigil::appear);
 }
 
 void Level::update()
@@ -102,12 +206,17 @@ void Level::update(double elapsedSeconds)
     if (heldKeys.contains(Qt::Key_Up)) by = by - 1;
     if (heldKeys.contains(Qt::Key_Down)) by = by + 1;
 
-    QPointF oldA = explorerA->pos();
-    QPointF oldB = explorerB->pos();
-    moveExplorer(explorerA, ax, ay, elapsedSeconds);
-    moveExplorer(explorerB, bx, by, elapsedSeconds);
-    explorerA->animate(explorerA->pos() - oldA, elapsedSeconds);
-    explorerB->animate(explorerB->pos() - oldB, elapsedSeconds);
+    if (tileMap != nullptr) {
+        updateExplorerGrid(explorerA, ax, ay, elapsedSeconds);
+        updateExplorerGrid(explorerB, bx, by, elapsedSeconds);
+    } else {
+        QPointF oldA = explorerA->pos();
+        QPointF oldB = explorerB->pos();
+        moveExplorer(explorerA, ax, ay, elapsedSeconds);
+        moveExplorer(explorerB, bx, by, elapsedSeconds);
+        explorerA->animate(explorerA->pos() - oldA, elapsedSeconds);
+        explorerB->animate(explorerB->pos() - oldB, elapsedSeconds);
+    }
 
     for (int i = 0; i < hazards.size(); i++)
         hazards[i]->update(explorerA, explorerB);
@@ -118,9 +227,15 @@ void Level::update(double elapsedSeconds)
     // puzzles check where the explorers are standing
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->update(explorerA, explorerB);
-    sigil->update(explorerA, explorerB);
+    if (sigil)
+        sigil->update(explorerA, explorerB);
     explorerA->updateDamageFeedback();
     explorerB->updateDamageFeedback();
+    updateFlashEffect(elapsedSeconds);
+    updateWaterCannonEffect(elapsedSeconds);
+
+    if (tileMap != nullptr)
+        checkDialogueTriggers();
 }
 
 void Level::reset()
@@ -137,8 +252,32 @@ void Level::reset()
 
     for (int i = 0; i < puzzles.size(); i++)
         puzzles[i]->reset();
-    sigil->reset();
-    gate->show();   // the gate closes again on a restart
+    if (sigil)
+        sigil->reset();
+    if (gate)
+        gate->show();
+    entranceOpen = false;
+    gateCleared = false;
+    gateWeakened = false;
+    gateCleared = false;
+    updateGateVisual();
+    cannonFxRemaining = 0.0;
+    for (QGraphicsPixmapItem* fx : cannonFxItems)
+        fx->hide();
+
+    updateEntranceVisual();
+    flashFxRemaining = 0.0;
+    if (flashFxItem)
+        flashFxItem->hide();
+    explorerA->reset();
+    explorerB->reset();
+    if (tileMap != nullptr) {
+        explorerA->setFacing(Explorer::Up);
+        explorerB->setFacing(Explorer::Up);
+    }
+    area1IntroShown = false;
+    area2IntroShown = false;
+    gateIntroShown = false;
 }
 
 void Level::clearHeldKeys()
@@ -166,11 +305,15 @@ Explorer* Level::getExplorerB()
     return explorerB;
 }
 
-bool Level::bothAtExit()
+
+int Level::mapPixelWidth() const
 {
-    if (exitZone == nullptr)
-        return false;
-    return explorerA->collidesWithItem(exitZone) && explorerB->collidesWithItem(exitZone);
+    return tileMap ? tileMap->pixelWidth() : World::Cols * World::TileSize;
+}
+
+int Level::mapPixelHeight() const
+{
+    return tileMap ? tileMap->pixelHeight() : World::Rows * World::TileSize;
 }
 
 QGraphicsRectItem* Level::addWall(int x, int y, int w, int h)
@@ -201,10 +344,10 @@ void Level::addSolid(const QRectF& r)
 // put it back inside the walkable area.
 void Level::keepInside(Explorer* explorer)
 {
-    if (world == nullptr)
+    if (tileMap == nullptr && world == nullptr)
         return;
 
-    QRectF area = world->playArea();
+    QRectF area = tileMap ? tileMap->playArea() : world->playArea();
     QRectF box = explorer->sceneBoundingRect();
 
     double dx = 0;
@@ -256,4 +399,310 @@ bool Level::hitsWall(Explorer* explorer)
             return true;
     }
     return false;
+}
+
+bool Level::canStepToCell(int col, int row) const
+{
+    if (tileMap == nullptr)
+        return false;
+    return tileMap->isWalkableCell(col, row, entranceOpen, gateCleared);
+}
+
+void Level::updateExplorerGrid(Explorer* explorer, int dx, int dy, double elapsedSeconds)
+{
+    if (explorer == nullptr)
+        return;
+
+    if (explorer->isMoving()) {
+        explorer->updateStep(elapsedSeconds);
+    }
+
+    // Start a new grid step immediately when idle (seamless repeat while key is held)
+    if (!explorer->isMoving() && (dx != 0 || dy != 0)) {
+        int stepX = 0;
+        int stepY = 0;
+        if (dy != 0) {
+            stepY = (dy < 0) ? -1 : 1;
+            explorer->setFacing(stepY < 0 ? Explorer::Up : Explorer::Down);
+        } else {
+            stepX = (dx < 0) ? -1 : 1;
+            explorer->setFacing(stepX < 0 ? Explorer::Left : Explorer::Right);
+        }
+
+        const QPoint cur = explorer->gridCell();
+        const int nextCol = cur.x() + stepX;
+        const int nextRow = cur.y() + stepY;
+        if (canStepToCell(nextCol, nextRow)) {
+            explorer->startStepTo(nextCol, nextRow);
+        }
+    }
+}
+
+void Level::openEntrance()
+{
+    entranceOpen = true;
+    updateEntranceVisual();
+}
+
+void Level::updateEntranceVisual()
+{
+    if (!entranceItem || entranceSheet.isNull())
+        return;
+    const int frame = entranceOpen ? 1 : 0;
+    entranceItem->setPixmap(entranceSheet.copy(frame * 48, 0, 48, 24));
+}
+
+void Level::triggerFlash()
+{
+    if (explorerA == nullptr)
+        return;
+
+    flashFxRemaining = 0.6;
+    if (flashFxItem && !flashFxSheet.isNull()) {
+        flashFxItem->setPos(explorerA->pos());
+        flashFxItem->setPixmap(flashFxSheet.copy(0, 0, 24, 24));
+        flashFxItem->show();
+    }
+
+    if (steppingPuzzle != nullptr && !steppingPuzzle->isSolved()) {
+        steppingPuzzle->revealNextStone();
+    } else if (platePuzzle != nullptr && !platePuzzle->isSolved()) {
+        platePuzzle->revealNextPlate();
+    }
+}
+void Level::updateFlashEffect(double elapsedSeconds)
+{
+    if (flashFxRemaining <= 0.0 || !flashFxItem)
+        return;
+
+    flashFxRemaining -= elapsedSeconds;
+    if (flashFxRemaining <= 0.0) {
+        flashFxRemaining = 0.0;
+        flashFxItem->hide();
+        return;
+    }
+
+    if (explorerA)
+        flashFxItem->setPos(explorerA->pos());
+    const int frame = (int(flashFxRemaining * 10.0) % 2 == 0) ? 0 : 1;
+    flashFxItem->setPixmap(flashFxSheet.copy(frame * 24, 0, 24, 24));
+}
+
+void Level::onWrongPlateTriggered()
+{
+    for (TileSpikeHazard* spike : tileSpikes)
+        spike->triggerBurst();
+
+    if (explorerB != nullptr)
+        explorerB->takeDamage(10);
+}
+
+bool Level::bothAtExit()
+{
+    if (tileMap != nullptr) {
+        if (!gateCleared || explorerA == nullptr || explorerB == nullptr)
+            return false;
+
+        const QRectF exitPassage = tileMap->gateRect();
+        const QPointF centerA = explorerA->sceneBoundingRect().center();
+        const QPointF centerB = explorerB->sceneBoundingRect().center();
+        return exitPassage.contains(centerA) && exitPassage.contains(centerB);
+    }
+
+    if (exitZone == nullptr)
+        return false;
+    return explorerA->collidesWithItem(exitZone) && explorerB->collidesWithItem(exitZone);
+}
+
+void Level::weakenGate()
+{
+    if (!gateCleared) {
+        gateWeakened = true;
+        updateGateVisual();
+    }
+}
+
+void Level::updateGateVisual()
+{
+    if (!gateItem || gateSheet.isNull())
+        return;
+
+    int frame = 0;
+    if (gateCleared)
+        frame = 2;
+    else if (gateWeakened)
+        frame = 1;
+
+    gateItem->setPixmap(gateSheet.copy(frame * 48, 0, 48, 48));
+}
+
+void Level::triggerWaterCannon()
+{
+    if (explorerB == nullptr || tileMap == nullptr)
+        return;
+
+    cannonFxDir = explorerB->facingDirection();
+    int dx = 0;
+    int dy = 0;
+    if (cannonFxDir == Explorer::Up) dy = -1;
+    else if (cannonFxDir == Explorer::Down) dy = 1;
+    else if (cannonFxDir == Explorer::Left) dx = -1;
+    else if (cannonFxDir == Explorer::Right) dx = 1;
+
+    const QPoint origin = explorerB->gridCell();
+    int visibleTiles = 0;
+
+    for (int step = 1; step <= cannonFxItems.size(); ++step) {
+        const int col = origin.x() + dx * step;
+        const int row = origin.y() + dy * step;
+        const char ch = tileMap->cellAt(col, row);
+
+        if (ch == 'G') {
+            if (gateWeakened && !gateCleared) {
+                gateCleared = true;
+                updateGateVisual();
+            }
+            break;
+        }
+
+        if (!canStepToCell(col, row))
+            break;
+
+        QGraphicsPixmapItem* fx = cannonFxItems[visibleTiles];
+        fx->setPos(col * TileMap::TileSize, row * TileMap::TileSize);
+        fx->show();
+        ++visibleTiles;
+    }
+
+    for (int i = visibleTiles; i < cannonFxItems.size(); ++i)
+        cannonFxItems[i]->hide();
+
+    cannonFxRemaining = (visibleTiles > 0) ? 0.45 : 0.0;
+    if (cannonFxRemaining > 0.0)
+        updateWaterCannonEffect(0.0);
+}
+
+void Level::updateWaterCannonEffect(double elapsedSeconds)
+{
+    if (cannonFxRemaining <= 0.0 || cannonFxSheet.isNull())
+        return;
+
+    cannonFxRemaining -= elapsedSeconds;
+    if (cannonFxRemaining <= 0.0) {
+        cannonFxRemaining = 0.0;
+        for (QGraphicsPixmapItem* fx : cannonFxItems)
+            fx->hide();
+        return;
+    }
+
+    const int frame = int((0.45 - cannonFxRemaining) * 16.0) % 4;
+    QImage img = cannonFxSheet.copy(frame * 24, 0, 24, 24).toImage();
+
+    // Native water_cannon.png shoots upward (North); rotate for Down/Left/Right
+    if (cannonFxDir == Explorer::Down)
+        img = img.transformed(QTransform().rotate(180));
+    else if (cannonFxDir == Explorer::Left)
+        img = img.transformed(QTransform().rotate(-90));
+    else if (cannonFxDir == Explorer::Right)
+        img = img.transformed(QTransform().rotate(90));
+
+    const QPixmap oriented = QPixmap::fromImage(img);
+    for (QGraphicsPixmapItem* fx : cannonFxItems) {
+        if (fx->isVisible())
+            fx->setPixmap(oriented);
+    }
+}
+
+void Level::checkDialogueTriggers()
+{
+    if (tileMap == nullptr || explorerA == nullptr || explorerB == nullptr)
+        return;
+
+    // 1. One-time Area 1 introductory message
+    if (!area1IntroShown) {
+        area1IntroShown = true;
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("A damp cavern stretches north, blocked by a sealed rock wall.\nScattered stepping stones lie half-buried in the dark..."),
+                QStringLiteral("Trainer 1: Press [E] to use Flash and reveal the next safe stone.\nTrainer 2: Walk onto the lit stones in order (1 to 5)!")
+            },
+            QStringLiteral("AREA 1 — DIM CAVERN"));
+        return;
+    }
+
+    const QPoint cellA = explorerA->gridCell();
+    const QPoint cellB = explorerB->gridCell();
+
+    // 2. One-time Area 2 introductory message (rows <= 13 after rock entrance opens)
+    if (entranceOpen && !area2IntroShown && (cellA.y() <= 13 || cellB.y() <= 13)) {
+        area2IntroShown = true;
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("You entered the Inner Sanctum! Five Unown plates cover the floor.\nStepping on the wrong rune triggers the floor spikes."),
+                QStringLiteral("Use Flash [E] to uncover the next rune in the sequence,\nthen step onto both golden plates together to summon Sigil 1.")
+            },
+            QStringLiteral("AREA 2 — INNER SANCTUM"));
+        return;
+    }
+
+    // 3. One-time message when approaching the northern boulder gate (rows <= 4, cols 5..9)
+    const bool nearGateA = (cellA.y() <= 4 && cellA.x() >= 5 && cellA.x() <= 9);
+    const bool nearGateB = (cellB.y() <= 4 && cellB.x() >= 5 && cellB.x() <= 9);
+    if (!gateIntroShown && (nearGateA || nearGateB)) {
+        gateIntroShown = true;
+        if (!gateWeakened && !gateCleared) {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Massive boulders block the northern exit.\nThey are packed too tightly for Wartortle's Water Cannon right now."),
+                    QStringLiteral("Collect Sigil 1 in this chamber to destabilize the gate!")
+                },
+                QStringLiteral("BOULDER GATE"));
+        } else if (gateWeakened && !gateCleared) {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Sigil 1's energy cracked the boulder gate wide open!\nFace Trainer 2 toward the boulders and press [Enter] for Water Cannon.")
+                },
+                QStringLiteral("BOULDER GATE"));
+        }
+    }
+}
+
+void Level::requestClue()
+{
+    if (tileMap == nullptr)
+        return;
+
+    if (!entranceOpen) {
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("Press [E] with Trainer 1 to illuminate the next stepping stone.\nHave Trainer 2 step onto all 5 stones in order without touching decoys.")
+            },
+            QStringLiteral("CLUE — AREA 1"));
+    } else if (!gateWeakened && !gateCleared) {
+        if (platePuzzle != nullptr && !platePuzzle->areRunePlatesSolved()) {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Press [E] with Trainer 1 to reveal the next Unown plate.\nStep Trainer 2 onto the 3 plates in sequence while avoiding spikes.")
+                },
+                QStringLiteral("CLUE — AREA 2"));
+        } else {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Have both Trainer 1 and Trainer 2 stand on the two large golden plates\nat the same time for 3 seconds to make Sigil 1 appear!")
+                },
+                QStringLiteral("CLUE — FINAL PLATES"));
+        }
+    } else if (!gateCleared) {
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("The boulder gate is weakened! Move Trainer 2 in front of the gate,\nface Up, and press [Enter] to clear it with Water Cannon.")
+            },
+            QStringLiteral("CLUE — BOULDER GATE"));
+    } else {
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("The passage is clear! Walk both Trainers into the dark exit\nat the top of the cave to complete Level 1.")
+            },
+            QStringLiteral("CLUE — EXIT"));
+    }
 }

@@ -4,6 +4,9 @@
 #include <QObject>
 #include <QGraphicsScene>
 #include <QGraphicsRectItem>
+#include <QGraphicsPixmapItem>
+#include <QPixmap>
+#include <QElapsedTimer>
 #include "Explorer.h"
 
 // The clue item. It stays hidden until appear() is called,
@@ -25,7 +28,12 @@ signals:
     void collected(int clueId);
 
 private:
-    QGraphicsRectItem* item;
+    void updateAnimation();
+
+    QGraphicsRectItem* item = nullptr;
+    QGraphicsPixmapItem* spriteItem = nullptr;
+    QPixmap sheet;
+    QElapsedTimer animTimer;
     int clueId;
     bool taken;
 };

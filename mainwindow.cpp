@@ -25,13 +25,17 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow) {
     ui->setupUi(this);
+    if (ui->menubar) ui->menubar->hide();
+    if (ui->statusbar) ui->statusbar->hide();
 
+    resize(Config::WindowW, Config::WindowH);
     resize(Config::WindowW, Config::WindowH);
     setWindowTitle("Ruins of the Unown - Level 1");
 
     setupScene();
     setupHud();
     setupOverlayBanner();
+    setupDialogueBox();
     setupTimers();
 
     updateOverlayLayout();
@@ -43,25 +47,29 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupScene() {
-    // Malek (C1): the Level adds its tiles/hazards/explorers to this scene.
-    scene = new QGraphicsScene(0, 0, Config::WindowW, Config::WindowH, this);
-    scene->setBackgroundBrush(QColor("#1e2d24"));
+    scene = new QGraphicsScene(0, 0, Config::LogicalViewW, 32 * Config::TilePx, this);
+    scene->setBackgroundBrush(Qt::black);
 
     view = new QGraphicsView(scene, this);
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setFrameShape(QFrame::NoFrame);
-    view->setFocusPolicy(Qt::NoFocus);                      // keys go to MainWindow, not the view
-    view->setAttribute(Qt::WA_TransparentForMouseEvents);   // clicks go to MainWindow (click-to-start)
-    // Reserve the HUD strip in screen pixels, then fit the playable cave below it.
+    view->setAlignment(Qt::AlignCenter);
+    view->setRenderHint(QPainter::Antialiasing, false);
+    view->setRenderHint(QPainter::SmoothPixmapTransform, false);
+    view->setFocusPolicy(Qt::NoFocus);
+    view->setAttribute(Qt::WA_TransparentForMouseEvents);
+
     QVBoxLayout* layout = new QVBoxLayout(ui->centralwidget);
     layout->setContentsMargins(0, Config::HudHeight, 0, 0);
+    layout->setSpacing(0);
     layout->addWidget(view);
-    view->setSceneRect(scene->sceneRect().adjusted(0, Config::HudHeight, 0, 0));
+    view->setSceneRect(scene->sceneRect());
     view->viewport()->installEventFilter(this);
 
     level = new Level(scene, this);
     connect(level, &Level::clueCollected, this, &MainWindow::onClueCollected);
+    connect(level, &Level::dialogueRequested, this, &MainWindow::onDialogueRequested);
 }
 
 void MainWindow::setupHud() {
@@ -101,9 +109,37 @@ void MainWindow::setupTimers() {
 // ========================================================================
 
 bool MainWindow::eventFilter(QObject* object, QEvent* event) {
-    if (event->type() == QEvent::Resize && view && object == view->viewport())
-        view->fitInView(view->sceneRect(), Qt::KeepAspectRatio);
+    if (event->type() == QEvent::Resize && view && object == view->viewport()) {
+        updateViewportScale();
+        updateCamera();
+    }
     return QMainWindow::eventFilter(object, event);
+}
+
+void MainWindow::updateViewportScale() {
+    if (!view) return;
+    const int availW = view->viewport()->width();
+    const int availH = view->viewport()->height();
+    const int scaleX = availW / Config::LogicalViewW;
+    const int scaleY = availH / Config::LogicalViewH;
+    const int intScale = qMax(1, qMin(scaleX, scaleY));
+    view->setTransform(QTransform::fromScale(intScale, intScale));
+}
+
+void MainWindow::updateCamera() {
+    if (!view || !scene) return;
+    const double halfViewH = Config::LogicalViewH / 2.0;
+    const double maxCenterY = qMax(halfViewH, scene->height() - halfViewH);
+
+    double targetY = maxCenterY; // default to southern spawn area
+    if (level && level->getExplorerA() && level->getExplorerB()) {
+        const double yA = level->getExplorerA()->sceneBoundingRect().center().y();
+        const double yB = level->getExplorerB()->sceneBoundingRect().center().y();
+        targetY = qMin(yA, yB); // northernmost player = smallest Y
+    }
+
+    const double clampedY = qBound(halfViewH, targetY, maxCenterY);
+    view->centerOn(Config::LogicalViewW / 2.0, clampedY);
 }
 
 void MainWindow::resizeEvent(QResizeEvent* event) {
@@ -119,6 +155,13 @@ void MainWindow::updateOverlayLayout() {
     const int bannerH = height() / 3;
     overlayBanner->setGeometry((width() - bannerW) / 2, (height() - bannerH) / 2, bannerW, bannerH);
     overlayBanner->raise();
+
+    if (dialogueBox) {
+        const int marginX = 24;
+        const int boxH = 132;
+        dialogueBox->setGeometry(marginX, height() - boxH - 16, width() - marginX * 2, boxH);
+        dialogueBox->raise();
+    }
 }
 
 void MainWindow::showBanner(const QString& text) {
@@ -208,11 +251,40 @@ bool MainWindow::event(QEvent* event) {
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event) {
-    if (state == GameState::Playing && isMovementKey(event->key())) {
-        if (!event->isAutoRepeat())
-            level->keyPressed(event->key());
-        event->accept();
-        return;
+    if (state == GameState::Playing) {
+        if (dialogueBox && dialogueBox->isActive()) {
+            if (!event->isAutoRepeat() && (event->key() == Qt::Key_Space
+                                           || event->key() == Qt::Key_Return
+                                           || event->key() == Qt::Key_Enter
+                                           || event->key() == Qt::Key_E
+                                           || event->key() == Qt::Key_Z)) {
+                dialogueBox->advance();
+            }
+            event->accept();
+            return;
+        }
+
+        if (isMovementKey(event->key())) {
+            if (!event->isAutoRepeat())
+                level->keyPressed(event->key());
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_E && !event->isAutoRepeat()) {
+            level->triggerFlash();
+            event->accept();
+            return;
+        }
+        if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && !event->isAutoRepeat()) {
+            level->triggerWaterCannon();
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_H && !event->isAutoRepeat()) {
+            level->requestClue();
+            event->accept();
+            return;
+        }
     }
 
     QMainWindow::keyPressEvent(event);
@@ -237,8 +309,14 @@ void MainWindow::keyReleaseEvent(QKeyEvent* event) {
 void MainWindow::onGameTick() {
     if (state != GameState::Playing) return;
 
+    if (dialogueBox && dialogueBox->isActive()) {
+        frameClock.restart();
+        return;
+    }
+
     const double dt = frameClock.restart() / 1000.0;
-    level->update(dt);   // movement, hazards, puzzles
+    level->update(dt);
+    updateCamera();
 
     Explorer* a = level->getExplorerA();
     Explorer* b = level->getExplorerB();
@@ -282,7 +360,11 @@ void MainWindow::startLevel(int levelNumber) {
     hud->setLevelText(levelTitle(levelNumber));
 
     level->loadLevel(levelNumber);
+    scene->setSceneRect(0, 0, level->mapPixelWidth(), level->mapPixelHeight());
+    view->setSceneRect(scene->sceneRect());
+    updateViewportScale();
     restartCurrentLevel();          // fresh HP / exits / current-level clues, HUD re-synced
+    updateCamera();
     setState(GameState::Playing);
 }
 
@@ -317,4 +399,15 @@ void MainWindow::refreshClueHud() {
     for (int id = 1; id <= HUDWidget::SigilCount; ++id) {
         hud->setSigilCollected(id, hasClue(id));
     }
+}
+
+void MainWindow::setupDialogueBox() {
+    dialogueBox = new DialogueBox(this);
+}
+
+void MainWindow::onDialogueRequested(const QStringList& pages, const QString& speaker) {
+    if (!dialogueBox || state != GameState::Playing)
+        return;
+    level->clearHeldKeys();
+    dialogueBox->showMessages(pages, speaker);
 }

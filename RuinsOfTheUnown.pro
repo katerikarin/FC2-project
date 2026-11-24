@@ -8,12 +8,16 @@ CONFIG += c++17
 
 SOURCES += \
     AltarPuzzle.cpp \
+    DialogueBox.cpp \
     Explorer.cpp \
     HUDWidget.cpp \
     Level.cpp \
     LetterTrailPuzzle.cpp \
+    PressurePlatePuzzle.cpp \
     Puzzle.cpp \
     Sigil.cpp \
+    SteppingStonePuzzle.cpp \
+    TileMap.cpp \
     hazard.cpp \
     world.cpp \
     main.cpp \
@@ -21,12 +25,16 @@ SOURCES += \
 
 HEADERS += \
     AltarPuzzle.h \
+    DialogueBox.h \
     Explorer.h \
     HUDWidget.h \
     Level.h \
     LetterTrailPuzzle.h \
+    PressurePlatePuzzle.h \
     Puzzle.h \
     Sigil.h \
+    SteppingStonePuzzle.h \
+    TileMap.h \
     hazard.h \
     world.h \
     mainwindow.h

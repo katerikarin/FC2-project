@@ -53,4 +53,34 @@ protected:
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 };
 
+// V2 24x24 sprite-backed spike trap (:/sprites/spikes.png: 72x24, 3 frames)
+class TileSpikeHazard : public Hazard
+{
+public:
+    TileSpikeHazard(int x, int y, int tileSize = 24, int damage = 10);
+    void triggerBurst();
+
+protected:
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+
+private:
+    QPixmap sheet;
+    QElapsedTimer burstTimer;
+};
+
+// V2 24x24 sprite-backed poison spill (:/sprites/poison_spill.png: 96x24, 2 variants x 2 frames)
+class TilePoisonHazard : public Hazard
+{
+public:
+    TilePoisonHazard(int x, int y, int variant = 0, int tileSize = 24, int damage = 5);
+
+protected:
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+
+private:
+    QPixmap sheet;
+    int variantIndex;
+    QElapsedTimer animTimer;
+};
+
 #endif // HAZARD_H
