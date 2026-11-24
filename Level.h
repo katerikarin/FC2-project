@@ -13,6 +13,8 @@
 #include "Hazard.h"
 #include "World.h"
 #include "TileMap.h"
+#include <QGraphicsPixmapItem>
+#include "SteppingStonePuzzle.h"
 
 // Holds everything inside one level: the two explorers, the walls, the exit and the puzzles.
 // MainWindow calls update() every game tick and reset() when the level restarts.
@@ -27,6 +29,7 @@ public:
     void update();
     void update(double elapsedSeconds);
     void reset();
+    void triggerFlash();
 
     // keys are remembered while they are held so both players can move together
     void keyPressed(int key);
@@ -44,6 +47,7 @@ signals:
 
 private slots:
     void openGate();
+    void openEntrance();
 
 private:
     QGraphicsRectItem* addWall(int x, int y, int w, int h);
@@ -52,6 +56,18 @@ private:
     void moveExplorer(Explorer* explorer, int dx, int dy);
     void moveExplorer(Explorer* explorer, int dx, int dy, double elapsedSeconds);
     bool hitsWall(Explorer* explorer);
+    void updateExplorerGrid(Explorer* explorer, int dx, int dy, double elapsedSeconds);
+    bool canStepToCell(int col, int row) const;
+
+    void updateEntranceVisual();
+    void updateFlashEffect(double elapsedSeconds);
+
+    QGraphicsPixmapItem* entranceItem = nullptr;
+    QPixmap entranceSheet;
+    QGraphicsPixmapItem* flashFxItem = nullptr;
+    QPixmap flashFxSheet;
+    double flashFxRemaining = 0.0;
+    SteppingStonePuzzle* steppingPuzzle = nullptr;
 
     QGraphicsScene* scene;
     Explorer* explorerA;
@@ -64,6 +80,8 @@ private:
     World* world;
     TileMap* tileMap;
     bool useLegacyWorld = false;
+    bool entranceOpen = false;
+    bool gateCleared = false;
     QList<Hazard*> hazards;
 
     QList<Puzzle*> puzzles;

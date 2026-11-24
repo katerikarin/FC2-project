@@ -248,6 +248,19 @@ void MainWindow::keyPressEvent(QKeyEvent* event) {
         event->accept();
         return;
     }
+    if (state == GameState::Playing) {
+        if (isMovementKey(event->key())) {
+            if (!event->isAutoRepeat())
+                level->keyPressed(event->key());
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_E && !event->isAutoRepeat()) {
+            level->triggerFlash();
+            event->accept();
+            return;
+        }
+    }
 
     QMainWindow::keyPressEvent(event);
 }

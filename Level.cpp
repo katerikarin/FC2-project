@@ -73,18 +73,44 @@ void Level::loadLevel(int levelNumber)
         connect(altarPuzzle, &Puzzle::solved, sigil, &Sigil::appear);
     } else {
         tileMap = new TileMap(scene);
-        QList<QRectF> solids = tileMap->solidRects();
+        QList<QRectF> solids = tileMap->solidRects(entranceOpen, gateCleared);
         for (int i = 0; i < solids.size(); i++)
             addSolid(solids[i]);
 
         const QPointF startA = tileMap->startPosA();
         const QPointF startB = tileMap->startPosB();
-        explorerA = new Explorer(QColor("#3fae5a"), int(startA.x()), int(startA.y()), Config::MaxHp);
-        explorerB = new Explorer(QColor("#3f7fd6"), int(startB.x()), int(startB.y()), Config::MaxHp);
-        explorerA->setSpriteSheet(QStringLiteral(":/sprites/explorer_a.png"));
-        explorerB->setSpriteSheet(QStringLiteral(":/sprites/explorer_b.png"));
+        explorerA = new Explorer(QColor("#3fae5a"), int(startA.x()), int(startA.y()), Config::MaxHp, TileMap::TileSize);
+        explorerB = new Explorer(QColor("#3f7fd6"), int(startB.x()), int(startB.y()), Config::MaxHp, TileMap::TileSize);
+        explorerA->setSpriteSheet(QStringLiteral(":/sprites/trainer1.png"));
+        explorerB->setSpriteSheet(QStringLiteral(":/sprites/trainer2.png"));
+        explorerA->setFacing(Explorer::Up);
+        explorerB->setFacing(Explorer::Up);
         scene->addItem(explorerA);
         scene->addItem(explorerB);
+        // Hidden rock entrance (48x24, frame 0 = closed, frame 1 = open)
+        entranceSheet.load(QStringLiteral(":/sprites/rock_entrance.png"));
+        entranceItem = new QGraphicsPixmapItem();
+        entranceItem->setPos(tileMap->entranceRect().topLeft());
+        entranceItem->setZValue(3);
+        scene->addItem(entranceItem);
+        updateEntranceVisual();
+
+        // Flash ability VFX (48x24 -> 2 frames of 24x24)
+        flashFxSheet.load(QStringLiteral(":/fx/flash_glow.png"));
+        flashFxItem = new QGraphicsPixmapItem();
+        flashFxItem->setZValue(12);
+        flashFxItem->hide();
+        scene->addItem(flashFxItem);
+
+        // Area 1: Stepping stones (1..5) + decoy stones (o)
+        steppingPuzzle = new SteppingStonePuzzle(
+            scene,
+            tileMap->steppingStoneCells(),
+            tileMap->decoyStoneCells(),
+            TileMap::TileSize,
+            this);
+        puzzles.append(steppingPuzzle);
+        connect(steppingPuzzle, &Puzzle::solved, this, &Level::openEntrance);
     }
 
     // Milestone 1 only has level 1 (mossy cave)
@@ -120,12 +146,17 @@ void Level::update(double elapsedSeconds)
     if (heldKeys.contains(Qt::Key_Up)) by = by - 1;
     if (heldKeys.contains(Qt::Key_Down)) by = by + 1;
 
-    QPointF oldA = explorerA->pos();
-    QPointF oldB = explorerB->pos();
-    moveExplorer(explorerA, ax, ay, elapsedSeconds);
-    moveExplorer(explorerB, bx, by, elapsedSeconds);
-    explorerA->animate(explorerA->pos() - oldA, elapsedSeconds);
-    explorerB->animate(explorerB->pos() - oldB, elapsedSeconds);
+    if (tileMap != nullptr) {
+        updateExplorerGrid(explorerA, ax, ay, elapsedSeconds);
+        updateExplorerGrid(explorerB, bx, by, elapsedSeconds);
+    } else {
+        QPointF oldA = explorerA->pos();
+        QPointF oldB = explorerB->pos();
+        moveExplorer(explorerA, ax, ay, elapsedSeconds);
+        moveExplorer(explorerB, bx, by, elapsedSeconds);
+        explorerA->animate(explorerA->pos() - oldA, elapsedSeconds);
+        explorerB->animate(explorerB->pos() - oldB, elapsedSeconds);
+    }
 
     for (int i = 0; i < hazards.size(); i++)
         hazards[i]->update(explorerA, explorerB);
@@ -160,6 +191,18 @@ void Level::reset()
         sigil->reset();
     if (gate)
         gate->show();
+    entranceOpen = false;
+    gateCleared = false;
+    updateEntranceVisual();
+    flashFxRemaining = 0.0;
+    if (flashFxItem)
+        flashFxItem->hide();
+    explorerA->reset();
+    explorerB->reset();
+    if (tileMap != nullptr) {
+        explorerA->setFacing(Explorer::Up);
+        explorerB->setFacing(Explorer::Up);
+    }
 }
 
 void Level::clearHeldKeys()
@@ -287,4 +330,89 @@ bool Level::hitsWall(Explorer* explorer)
             return true;
     }
     return false;
+}
+
+bool Level::canStepToCell(int col, int row) const
+{
+    if (tileMap == nullptr)
+        return false;
+    return tileMap->isWalkableCell(col, row, entranceOpen, gateCleared);
+}
+
+void Level::updateExplorerGrid(Explorer* explorer, int dx, int dy, double elapsedSeconds)
+{
+    if (explorer == nullptr)
+        return;
+
+    if (explorer->isMoving()) {
+        explorer->updateStep(elapsedSeconds);
+    }
+
+    // Start a new grid step immediately when idle (seamless repeat while key is held)
+    if (!explorer->isMoving() && (dx != 0 || dy != 0)) {
+        int stepX = 0;
+        int stepY = 0;
+        if (dy != 0) {
+            stepY = (dy < 0) ? -1 : 1;
+            explorer->setFacing(stepY < 0 ? Explorer::Up : Explorer::Down);
+        } else {
+            stepX = (dx < 0) ? -1 : 1;
+            explorer->setFacing(stepX < 0 ? Explorer::Left : Explorer::Right);
+        }
+
+        const QPoint cur = explorer->gridCell();
+        const int nextCol = cur.x() + stepX;
+        const int nextRow = cur.y() + stepY;
+        if (canStepToCell(nextCol, nextRow)) {
+            explorer->startStepTo(nextCol, nextRow);
+        }
+    }
+}
+
+void Level::openEntrance()
+{
+    entranceOpen = true;
+    updateEntranceVisual();
+}
+
+void Level::updateEntranceVisual()
+{
+    if (!entranceItem || entranceSheet.isNull())
+        return;
+    const int frame = entranceOpen ? 1 : 0;
+    entranceItem->setPixmap(entranceSheet.copy(frame * 48, 0, 48, 24));
+}
+
+void Level::triggerFlash()
+{
+    if (explorerA == nullptr)
+        return;
+
+    flashFxRemaining = 0.6;
+    if (flashFxItem && !flashFxSheet.isNull()) {
+        flashFxItem->setPos(explorerA->pos());
+        flashFxItem->setPixmap(flashFxSheet.copy(0, 0, 24, 24));
+        flashFxItem->show();
+    }
+
+    if (steppingPuzzle != nullptr)
+        steppingPuzzle->revealNextStone();
+}
+
+void Level::updateFlashEffect(double elapsedSeconds)
+{
+    if (flashFxRemaining <= 0.0 || !flashFxItem)
+        return;
+
+    flashFxRemaining -= elapsedSeconds;
+    if (flashFxRemaining <= 0.0) {
+        flashFxRemaining = 0.0;
+        flashFxItem->hide();
+        return;
+    }
+
+    if (explorerA)
+        flashFxItem->setPos(explorerA->pos());
+    const int frame = (int(flashFxRemaining * 10.0) % 2 == 0) ? 0 : 1;
+    flashFxItem->setPixmap(flashFxSheet.copy(frame * 24, 0, 24, 24));
 }
