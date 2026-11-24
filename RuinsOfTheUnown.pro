@@ -8,6 +8,7 @@ CONFIG += c++17
 
 SOURCES += \
     AltarPuzzle.cpp \
+    DialogueBox.cpp \
     Explorer.cpp \
     HUDWidget.cpp \
     Level.cpp \
@@ -24,6 +25,7 @@ SOURCES += \
 
 HEADERS += \
     AltarPuzzle.h \
+    DialogueBox.h \
     Explorer.h \
     HUDWidget.h \
     Level.h \

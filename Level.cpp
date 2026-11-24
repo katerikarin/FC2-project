@@ -233,6 +233,9 @@ void Level::update(double elapsedSeconds)
     explorerB->updateDamageFeedback();
     updateFlashEffect(elapsedSeconds);
     updateWaterCannonEffect(elapsedSeconds);
+
+    if (tileMap != nullptr)
+        checkDialogueTriggers();
 }
 
 void Level::reset()
@@ -272,6 +275,9 @@ void Level::reset()
         explorerA->setFacing(Explorer::Up);
         explorerB->setFacing(Explorer::Up);
     }
+    area1IntroShown = false;
+    area2IntroShown = false;
+    gateIntroShown = false;
 }
 
 void Level::clearHeldKeys()
@@ -604,5 +610,99 @@ void Level::updateWaterCannonEffect(double elapsedSeconds)
     for (QGraphicsPixmapItem* fx : cannonFxItems) {
         if (fx->isVisible())
             fx->setPixmap(oriented);
+    }
+}
+
+void Level::checkDialogueTriggers()
+{
+    if (tileMap == nullptr || explorerA == nullptr || explorerB == nullptr)
+        return;
+
+    // 1. One-time Area 1 introductory message
+    if (!area1IntroShown) {
+        area1IntroShown = true;
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("A damp cavern stretches north, blocked by a sealed rock wall.\nScattered stepping stones lie half-buried in the dark..."),
+                QStringLiteral("Trainer 1: Press [E] to use Flash and reveal the next safe stone.\nTrainer 2: Walk onto the lit stones in order (1 to 5)!")
+            },
+            QStringLiteral("AREA 1 — DIM CAVERN"));
+        return;
+    }
+
+    const QPoint cellA = explorerA->gridCell();
+    const QPoint cellB = explorerB->gridCell();
+
+    // 2. One-time Area 2 introductory message (rows <= 13 after rock entrance opens)
+    if (entranceOpen && !area2IntroShown && (cellA.y() <= 13 || cellB.y() <= 13)) {
+        area2IntroShown = true;
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("You entered the Inner Sanctum! Five Unown plates cover the floor.\nStepping on the wrong rune triggers the floor spikes."),
+                QStringLiteral("Use Flash [E] to uncover the next rune in the sequence,\nthen step onto both golden plates together to summon Sigil 1.")
+            },
+            QStringLiteral("AREA 2 — INNER SANCTUM"));
+        return;
+    }
+
+    // 3. One-time message when approaching the northern boulder gate (rows <= 4, cols 5..9)
+    const bool nearGateA = (cellA.y() <= 4 && cellA.x() >= 5 && cellA.x() <= 9);
+    const bool nearGateB = (cellB.y() <= 4 && cellB.x() >= 5 && cellB.x() <= 9);
+    if (!gateIntroShown && (nearGateA || nearGateB)) {
+        gateIntroShown = true;
+        if (!gateWeakened && !gateCleared) {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Massive boulders block the northern exit.\nThey are packed too tightly for Wartortle's Water Cannon right now."),
+                    QStringLiteral("Collect Sigil 1 in this chamber to destabilize the gate!")
+                },
+                QStringLiteral("BOULDER GATE"));
+        } else if (gateWeakened && !gateCleared) {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Sigil 1's energy cracked the boulder gate wide open!\nFace Trainer 2 toward the boulders and press [Enter] for Water Cannon.")
+                },
+                QStringLiteral("BOULDER GATE"));
+        }
+    }
+}
+
+void Level::requestClue()
+{
+    if (tileMap == nullptr)
+        return;
+
+    if (!entranceOpen) {
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("Press [E] with Trainer 1 to illuminate the next stepping stone.\nHave Trainer 2 step onto all 5 stones in order without touching decoys.")
+            },
+            QStringLiteral("CLUE — AREA 1"));
+    } else if (!gateWeakened && !gateCleared) {
+        if (platePuzzle != nullptr && !platePuzzle->areRunePlatesSolved()) {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Press [E] with Trainer 1 to reveal the next Unown plate.\nStep Trainer 2 onto the 3 plates in sequence while avoiding spikes.")
+                },
+                QStringLiteral("CLUE — AREA 2"));
+        } else {
+            emit dialogueRequested(
+                QStringList{
+                    QStringLiteral("Have both Trainer 1 and Trainer 2 stand on the two large golden plates\nat the same time for 3 seconds to make Sigil 1 appear!")
+                },
+                QStringLiteral("CLUE — FINAL PLATES"));
+        }
+    } else if (!gateCleared) {
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("The boulder gate is weakened! Move Trainer 2 in front of the gate,\nface Up, and press [Enter] to clear it with Water Cannon.")
+            },
+            QStringLiteral("CLUE — BOULDER GATE"));
+    } else {
+        emit dialogueRequested(
+            QStringList{
+                QStringLiteral("The passage is clear! Walk both Trainers into the dark exit\nat the top of the cave to complete Level 1.")
+            },
+            QStringLiteral("CLUE — EXIT"));
     }
 }

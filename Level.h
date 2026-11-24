@@ -7,6 +7,7 @@
 #include <QList>
 #include <QSet>
 #include <QRectF>
+#include <QStringList>
 #include "Explorer.h"
 #include "Puzzle.h"
 #include "Sigil.h"
@@ -32,6 +33,7 @@ public:
     void reset();
     void triggerFlash();
     void triggerWaterCannon();
+    void requestClue();
 
     // keys are remembered while they are held so both players can move together
     void keyPressed(int key);
@@ -46,6 +48,7 @@ public:
 
 signals:
     void clueCollected(int clueId);
+    void dialogueRequested(const QStringList& pages, const QString& speaker = QString());
 
 private slots:
     void openGate();
@@ -105,6 +108,12 @@ private:
 
     QList<Puzzle*> puzzles;
     Sigil* sigil;
+
+    void checkDialogueTriggers();
+
+    bool area1IntroShown = false;
+    bool area2IntroShown = false;
+    bool gateIntroShown = false;
 };
 
 #endif // LEVEL_H

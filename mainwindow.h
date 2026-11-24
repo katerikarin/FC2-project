@@ -13,6 +13,7 @@
 #include <QResizeEvent>
 #include "HUDWidget.h"
 #include "Level.h"
+#include "DialogueBox.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -73,6 +74,7 @@ protected:
 private slots:
     void onGameTick();
     void onTransitionTimerTimeout();
+    void onDialogueRequested(const QStringList& pages, const QString& speaker);
 
 private:
     // ===================== 1. UI SETUP (called once from ctor) ==========
@@ -82,6 +84,8 @@ private:
     void setupTimers();
     void updateOverlayLayout();
     void showBanner(const QString& text);
+    void setupDialogueBox();
+    DialogueBox* dialogueBox = nullptr;
 
     void updateViewportScale();
     void updateCamera();
