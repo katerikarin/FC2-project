@@ -1,6 +1,30 @@
 <RCC>
+    <qresource prefix="/tiles">
+        <file alias="tileset.png">assets/tiles/tileset.png</file>
+        <file alias="tileset.json">assets/tiles/tileset.json</file>
+        <file alias="floor.png">assets/tiles/floor.png</file>
+        <file alias="floor_moss.png">assets/tiles/floor_moss.png</file>
+        <file alias="deco_rocks.png">assets/tiles/deco_rocks.png</file>
+    </qresource>
     <qresource prefix="/sprites">
         <file alias="explorer_a.png">assets/sprites/explorer_a.png</file>
         <file alias="explorer_b.png">assets/sprites/explorer_b.png</file>
+        <file alias="trainer1.png">assets/sprites/trainer1.png</file>
+        <file alias="trainer2.png">assets/sprites/trainer2.png</file>
+        <file alias="stepping_stones.png">assets/sprites/stepping_stones.png</file>
+        <file alias="plates.png">assets/sprites/plates.png</file>
+        <file alias="final_plate.png">assets/sprites/final_plate.png</file>
+        <file alias="boulder_gate.png">assets/sprites/boulder_gate.png</file>
+        <file alias="rock_entrance.png">assets/sprites/rock_entrance.png</file>
+        <file alias="spikes.png">assets/sprites/spikes.png</file>
+        <file alias="poison_spill.png">assets/sprites/poison_spill.png</file>
+        <file alias="sigil_light.png">assets/sprites/sigil_light.png</file>
+    </qresource>
+    <qresource prefix="/fx">
+        <file alias="flash_glow.png">assets/fx/flash_glow.png</file>
+        <file alias="water_cannon.png">assets/fx/water_cannon.png</file>
+    </qresource>
+    <qresource prefix="/maps">
+        <file alias="level1.txt">assets/maps/level1.txt</file>
     </qresource>
 </RCC>
