@@ -14,6 +14,7 @@ SOURCES += \
     LetterTrailPuzzle.cpp \
     Puzzle.cpp \
     Sigil.cpp \
+    TileMap.cpp \
     hazard.cpp \
     world.cpp \
     main.cpp \
@@ -27,6 +28,7 @@ HEADERS += \
     LetterTrailPuzzle.h \
     Puzzle.h \
     Sigil.h \
+    TileMap.h \
     hazard.h \
     world.h \
     mainwindow.h

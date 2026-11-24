@@ -17,10 +17,23 @@ Level::Level(QGraphicsScene* scene, QObject* parent) : QObject(parent)
     gate = nullptr;
     sigil = nullptr;
     world = nullptr;
+    tileMap = nullptr;
 }
 
 void Level::loadLevel(int levelNumber)
 {
+    if (useLegacyWorld) {
+        world = new World(scene);
+        QList<QRectF> solids = world->solidRects();
+        for (int i = 0; i < solids.size(); i++)
+            addSolid(solids[i]);
+    } else {
+        tileMap = new TileMap(scene);
+        QList<QRectF> solids = tileMap->solidRects();
+        for (int i = 0; i < solids.size(); i++)
+            addSolid(solids[i]);
+    }
+
     // Milestone 1 only has level 1 (mossy cave)
     if (levelNumber != 1)
         return;

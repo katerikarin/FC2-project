@@ -12,6 +12,7 @@
 #include "Sigil.h"
 #include "Hazard.h"
 #include "World.h"
+#include "TileMap.h"
 
 // Holds everything inside one level: the two explorers, the walls, the exit and the puzzles.
 // MainWindow calls update() every game tick and reset() when the level restarts.
@@ -59,6 +60,8 @@ private:
     QSet<int> heldKeys;
 
     World* world;
+    TileMap* tileMap;
+    bool useLegacyWorld = true;
     QList<Hazard*> hazards;
 
     QList<Puzzle*> puzzles;
