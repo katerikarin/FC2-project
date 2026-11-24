@@ -31,6 +31,7 @@ public:
     void update(double elapsedSeconds);
     void reset();
     void triggerFlash();
+    void triggerWaterCannon();
 
     // keys are remembered while they are held so both players can move together
     void keyPressed(int key);
@@ -49,6 +50,7 @@ signals:
 private slots:
     void openGate();
     void openEntrance();
+    void weakenGate();
     void onWrongPlateTriggered();
 
 private:
@@ -84,9 +86,22 @@ private:
     World* world;
     TileMap* tileMap;
     bool useLegacyWorld = false;
-    bool entranceOpen = false;
-    bool gateCleared = false;
     QList<Hazard*> hazards;
+
+    void updateGateVisual();
+    void updateWaterCannonEffect(double elapsedSeconds);
+
+    bool entranceOpen = false;
+    bool gateWeakened = false;
+    bool gateCleared = false;
+
+
+    QGraphicsPixmapItem* gateItem = nullptr;
+    QPixmap gateSheet;
+    QList<QGraphicsPixmapItem*> cannonFxItems;
+    QPixmap cannonFxSheet;
+    double cannonFxRemaining = 0.0;
+    Explorer::Facing cannonFxDir = Explorer::Up;
 
     QList<Puzzle*> puzzles;
     Sigil* sigil;

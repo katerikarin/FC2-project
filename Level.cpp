@@ -150,6 +150,27 @@ void Level::loadLevel(int levelNumber)
         puzzles.append(platePuzzle);
         connect(platePuzzle, &PressurePlatePuzzle::wrongPlateTriggered, this, &Level::onWrongPlateTriggered);
         connect(platePuzzle, &Puzzle::solved, sigil, &Sigil::appear);
+
+        // Northern boulder gate (48x48: 0 = intact, 1 = weakened, 2 = cleared black passage)
+        gateSheet.load(QStringLiteral(":/sprites/boulder_gate.png"));
+        gateItem = new QGraphicsPixmapItem();
+        gateItem->setPos(tileMap->gateRect().topLeft());
+        gateItem->setZValue(3);
+        scene->addItem(gateItem);
+        updateGateVisual();
+
+        // Collecting Sigil 1 weakens the boulder gate
+        connect(sigil, &Sigil::collected, this, &Level::weakenGate);
+
+        // Water Cannon VFX pool (up to 3 tiles of 24x24 animated water stream)
+        cannonFxSheet.load(QStringLiteral(":/fx/water_cannon.png"));
+        for (int i = 0; i < 3; ++i) {
+            auto* fx = new QGraphicsPixmapItem();
+            fx->setZValue(12);
+            fx->hide();
+            scene->addItem(fx);
+            cannonFxItems.append(fx);
+        }
     }
 
     // Milestone 1 only has level 1 (mossy cave)
@@ -210,6 +231,8 @@ void Level::update(double elapsedSeconds)
         sigil->update(explorerA, explorerB);
     explorerA->updateDamageFeedback();
     explorerB->updateDamageFeedback();
+    updateFlashEffect(elapsedSeconds);
+    updateWaterCannonEffect(elapsedSeconds);
 }
 
 void Level::reset()
@@ -232,6 +255,13 @@ void Level::reset()
         gate->show();
     entranceOpen = false;
     gateCleared = false;
+    gateWeakened = false;
+    gateCleared = false;
+    updateGateVisual();
+    cannonFxRemaining = 0.0;
+    for (QGraphicsPixmapItem* fx : cannonFxItems)
+        fx->hide();
+
     updateEntranceVisual();
     flashFxRemaining = 0.0;
     if (flashFxItem)
@@ -269,12 +299,6 @@ Explorer* Level::getExplorerB()
     return explorerB;
 }
 
-bool Level::bothAtExit()
-{
-    if (exitZone == nullptr)
-        return false;
-    return explorerA->collidesWithItem(exitZone) && explorerB->collidesWithItem(exitZone);
-}
 
 int Level::mapPixelWidth() const
 {
@@ -465,4 +489,120 @@ void Level::onWrongPlateTriggered()
 
     if (explorerB != nullptr)
         explorerB->takeDamage(10);
+}
+
+bool Level::bothAtExit()
+{
+    if (tileMap != nullptr) {
+        if (!gateCleared || explorerA == nullptr || explorerB == nullptr)
+            return false;
+
+        const QRectF exitPassage = tileMap->gateRect();
+        const QPointF centerA = explorerA->sceneBoundingRect().center();
+        const QPointF centerB = explorerB->sceneBoundingRect().center();
+        return exitPassage.contains(centerA) && exitPassage.contains(centerB);
+    }
+
+    if (exitZone == nullptr)
+        return false;
+    return explorerA->collidesWithItem(exitZone) && explorerB->collidesWithItem(exitZone);
+}
+
+void Level::weakenGate()
+{
+    if (!gateCleared) {
+        gateWeakened = true;
+        updateGateVisual();
+    }
+}
+
+void Level::updateGateVisual()
+{
+    if (!gateItem || gateSheet.isNull())
+        return;
+
+    int frame = 0;
+    if (gateCleared)
+        frame = 2;
+    else if (gateWeakened)
+        frame = 1;
+
+    gateItem->setPixmap(gateSheet.copy(frame * 48, 0, 48, 48));
+}
+
+void Level::triggerWaterCannon()
+{
+    if (explorerB == nullptr || tileMap == nullptr)
+        return;
+
+    cannonFxDir = explorerB->facingDirection();
+    int dx = 0;
+    int dy = 0;
+    if (cannonFxDir == Explorer::Up) dy = -1;
+    else if (cannonFxDir == Explorer::Down) dy = 1;
+    else if (cannonFxDir == Explorer::Left) dx = -1;
+    else if (cannonFxDir == Explorer::Right) dx = 1;
+
+    const QPoint origin = explorerB->gridCell();
+    int visibleTiles = 0;
+
+    for (int step = 1; step <= cannonFxItems.size(); ++step) {
+        const int col = origin.x() + dx * step;
+        const int row = origin.y() + dy * step;
+        const char ch = tileMap->cellAt(col, row);
+
+        if (ch == 'G') {
+            if (gateWeakened && !gateCleared) {
+                gateCleared = true;
+                updateGateVisual();
+            }
+            break;
+        }
+
+        if (!canStepToCell(col, row))
+            break;
+
+        QGraphicsPixmapItem* fx = cannonFxItems[visibleTiles];
+        fx->setPos(col * TileMap::TileSize, row * TileMap::TileSize);
+        fx->show();
+        ++visibleTiles;
+    }
+
+    for (int i = visibleTiles; i < cannonFxItems.size(); ++i)
+        cannonFxItems[i]->hide();
+
+    cannonFxRemaining = (visibleTiles > 0) ? 0.45 : 0.0;
+    if (cannonFxRemaining > 0.0)
+        updateWaterCannonEffect(0.0);
+}
+
+void Level::updateWaterCannonEffect(double elapsedSeconds)
+{
+    if (cannonFxRemaining <= 0.0 || cannonFxSheet.isNull())
+        return;
+
+    cannonFxRemaining -= elapsedSeconds;
+    if (cannonFxRemaining <= 0.0) {
+        cannonFxRemaining = 0.0;
+        for (QGraphicsPixmapItem* fx : cannonFxItems)
+            fx->hide();
+        return;
+    }
+
+    const int frame = int((0.45 - cannonFxRemaining) * 16.0) % 4;
+    QImage img = cannonFxSheet.copy(frame * 24, 0, 24, 24).toImage();
+
+    // Native water_cannon.png shoots upward (North); rotate for Down/Left/Right
+    if (cannonFxDir == Explorer::Down)
+        img = img.transformed(QTransform().rotate(180));
+    else if (cannonFxDir == Explorer::Left)
+        img = img.transformed(QTransform().rotate(-90));
+    else if (cannonFxDir == Explorer::Right)
+        img = img.transformed(QTransform().rotate(90));
+
+    const QPixmap oriented = QPixmap::fromImage(img);
+    for (QGraphicsPixmapItem* fx : cannonFxItems) {
+        if (fx->isVisible())
+            fx->setPixmap(oriented);
+    }
 }
